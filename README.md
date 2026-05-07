@@ -45,7 +45,7 @@ Point the MCP client at the repo script:
 Install directly from GitHub:
 
 ```bash
-npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.19-beta.1
+npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.19-beta.2
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
 ```
