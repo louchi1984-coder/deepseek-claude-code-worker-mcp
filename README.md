@@ -55,7 +55,7 @@ deepseek-code-worker-mcp --doctor
 Before the npm package is available in your registry, install directly from GitHub:
 
 ```bash
-npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.4
+npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.5
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
 ```

@@ -64,7 +64,7 @@ npm run mcp:doctor
 如果 npm registry 还不可用，可以先从 GitHub 安装：
 
 ```bash
-npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.4
+npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.5
 ```
 
 ## 依赖
