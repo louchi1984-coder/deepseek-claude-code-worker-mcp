@@ -21,7 +21,7 @@ MCP 宿主
 从 GitHub 直接安装：
 
 ```bash
-npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.19-beta.2
+npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.19-beta.3
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
 ```
