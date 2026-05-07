@@ -10,6 +10,10 @@
     "coding-agent"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/louchi1984-coder/deepseek-claude-code-worker-mcp.git"
+  },
   "private": false,
   "type": "module",
   "bin": {
