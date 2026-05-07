@@ -15,8 +15,8 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { homedir, platform } from "node:os";
+import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   DANGEROUS_BASH_DENY_RULES,
   DEFAULT_CHECK_TIMEOUT_MS,
@@ -259,7 +259,7 @@ async function runDoctor() {
     detail: resolvedClaudeBin || `not found: ${claudeBin}`,
   });
 
-  const claudeCodeBin = process.env.CLAUDE_BIN || resolveExecutable("claude") || resolve(homedir(), ".local/bin/claude");
+  const claudeCodeBin = process.env.CLAUDE_BIN || resolveExecutable("claude") || defaultClaudeBin();
   checks.push({
     name: "claude_code_cli",
     ok: Boolean(resolveExecutable(claudeCodeBin)),
@@ -317,7 +317,7 @@ async function runDoctor() {
 async function runSetup() {
   process.stdout.write("DeepSeek Code Worker MCP setup\n\n");
 
-  const claudeCodeBin = process.env.CLAUDE_BIN || resolveExecutable("claude") || resolve(homedir(), ".local/bin/claude");
+  const claudeCodeBin = process.env.CLAUDE_BIN || resolveExecutable("claude") || defaultClaudeBin();
   let resolvedClaudeCode = resolveExecutable(claudeCodeBin);
   if (resolvedClaudeCode) {
     process.stdout.write(`Claude Code CLI: ${resolvedClaudeCode}\n`);
@@ -327,7 +327,7 @@ async function runSetup() {
       "",
     ].join("\n"));
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
-      process.stdout.write("Run setup in an interactive terminal to install Claude Code, or set CLAUDE_BIN=/absolute/path/to/claude.\n\n");
+      process.stdout.write("Run setup in an interactive terminal to install Claude Code, or set CLAUDE_BIN to the absolute path of the Claude Code executable.\n\n");
     } else {
       const answer = await promptText("Install Claude Code now with `npm install -g @anthropic-ai/claude-code`? [y/N] ");
       if (/^y(es)?$/i.test(answer.trim())) {
@@ -1224,7 +1224,8 @@ function previewClaudeArgs(args, prompt = "<worker-prompt>") {
 }
 
 async function runCheck(cwd, command, timeout_ms) {
-  const result = await runProcess("/bin/zsh", ["-lc", command], { cwd, timeout_ms });
+  const shell = checkShellInvocation(command);
+  const result = await runProcess(shell.command, shell.args, { cwd, timeout_ms });
   return {
     command,
     exit_code: result.exit_code,
@@ -2123,24 +2124,53 @@ function processPidAlive(pid) {
 
 function resolveExecutable(command) {
   if (typeof command !== "string" || command.length === 0) return null;
-  if (command.includes("/") || command.includes("\\")) {
+  if (isAbsolute(command) || command.includes("/") || command.includes("\\")) {
     return isExecutable(command) ? command : null;
   }
-  const pathDirs = (process.env.PATH ?? "").split(":").filter(Boolean);
+  const pathDirs = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
+  const extensions = executableExtensions(command);
   for (const dir of pathDirs) {
-    const candidate = join(dir, command);
-    if (isExecutable(candidate)) return candidate;
+    for (const ext of extensions) {
+      const candidate = join(dir, `${command}${ext}`);
+      if (isExecutable(candidate)) return candidate;
+    }
   }
   return null;
 }
 
 function isExecutable(path) {
   try {
-    accessSync(path, fsConstants.X_OK);
+    accessSync(path, platform() === "win32" ? fsConstants.F_OK : fsConstants.X_OK);
     return true;
   } catch {
     return false;
   }
+}
+
+function executableExtensions(command) {
+  if (platform() !== "win32") return [""];
+  if (/\.[^\\/]+$/.test(command)) return [""];
+  return (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD")
+    .split(";")
+    .filter(Boolean)
+    .map((ext) => ext.toLowerCase())
+    .concat("");
+}
+
+function defaultClaudeBin() {
+  if (platform() === "win32") return "claude";
+  return resolve(homedir(), ".local/bin/claude");
+}
+
+function checkShellInvocation(command) {
+  if (platform() === "win32") {
+    return {
+      command: process.env.ComSpec || "cmd.exe",
+      args: ["/d", "/s", "/c", command],
+    };
+  }
+  const shell = resolveExecutable("zsh") || resolveExecutable("bash") || resolveExecutable("sh") || "/bin/sh";
+  return { command: shell, args: ["-lc", command] };
 }
 
 function normalizeRel(path) {

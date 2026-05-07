@@ -2,10 +2,12 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { JOB_ROOT } from "../src/core/config.mjs";
 
 const jobId = "dsw_restore_smoke";
-const jobDir = `/tmp/deepseek-code-worker/jobs/${jobId}`;
-const cwd = "/tmp/deepseek-worker-restore-smoke";
+const jobDir = join(JOB_ROOT, jobId);
+const cwd = join(tmpdir(), "deepseek-worker-restore-smoke");
 
 rmSync(jobDir, { recursive: true, force: true });
 rmSync(cwd, { recursive: true, force: true });

@@ -1,7 +1,8 @@
 import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-export const SERVER_VERSION = "0.3.19";
+export const SERVER_VERSION = "0.3.20";
 export const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const SELF_SCRIPT = resolve(process.argv[1] ?? "deepseek-worker-mcp.mjs");
 export const DEFAULT_CLAUDE_DEEPSEEK = resolve(PACKAGE_ROOT, "bin/claude-deepseek.mjs");
@@ -21,7 +22,7 @@ export const MAX_STREAM_EVENTS = 200;
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 export const MAX_DIFF_CONTENT_BYTES = 1024 * 1024;
 export const MAX_DIFF_LINES = 2000;
-export const JOB_ROOT = "/tmp/deepseek-code-worker/jobs";
+export const JOB_ROOT = resolve(tmpdir(), "deepseek-code-worker", "jobs");
 
 export const DEFAULT_IGNORED_DIRS = new Set([
   ".git",

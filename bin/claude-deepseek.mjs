@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { accessSync, constants as fsConstants, existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { homedir, platform } from "node:os";
+import { basename, delimiter, isAbsolute, join } from "node:path";
 import { spawn } from "node:child_process";
 
 const wrapperName = basename(process.argv[1] ?? "claude-deepseek");
 const defaults = modelDefaults(wrapperName);
-const claudeBin = process.env.CLAUDE_BIN || resolveExecutable("claude") || join(homedir(), ".local/bin/claude");
+const claudeBin = process.env.CLAUDE_BIN || resolveExecutable("claude") || defaultClaudeBin();
 const keyFile = process.env.DEEPSEEK_API_KEY_FILE || join(homedir(), ".codex/secrets/deepseek_api_key");
 
 if (!isExecutable(claudeBin)) {
@@ -63,21 +63,43 @@ function modelDefaults(name) {
 }
 
 function resolveExecutable(command) {
-  const pathDirs = (process.env.PATH ?? "").split(":").filter(Boolean);
+  if (typeof command !== "string" || command.length === 0) return null;
+  if (isAbsolute(command) || command.includes("/") || command.includes("\\")) {
+    return isExecutable(command) ? command : null;
+  }
+  const pathDirs = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
+  const extensions = executableExtensions(command);
   for (const dir of pathDirs) {
-    const candidate = join(dir, command);
-    if (isExecutable(candidate)) return candidate;
+    for (const ext of extensions) {
+      const candidate = join(dir, `${command}${ext}`);
+      if (isExecutable(candidate)) return candidate;
+    }
   }
   return null;
 }
 
 function isExecutable(path) {
   try {
-    accessSync(path, fsConstants.X_OK);
+    accessSync(path, platform() === "win32" ? fsConstants.F_OK : fsConstants.X_OK);
     return true;
   } catch {
     return false;
   }
+}
+
+function executableExtensions(command) {
+  if (platform() !== "win32") return [""];
+  if (/\.[^\\/]+$/.test(command)) return [""];
+  return (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD")
+    .split(";")
+    .filter(Boolean)
+    .map((ext) => ext.toLowerCase())
+    .concat("");
+}
+
+function defaultClaudeBin() {
+  if (platform() === "win32") return "claude";
+  return join(homedir(), ".local/bin/claude");
 }
 
 function fail(message) {

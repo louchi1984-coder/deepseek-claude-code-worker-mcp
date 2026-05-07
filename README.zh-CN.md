@@ -21,7 +21,7 @@ MCP 宿主
 从 GitHub 直接安装：
 
 ```bash
-npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.19-beta.3
+npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.4
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
 ```
@@ -70,10 +70,13 @@ npm install -g deepseek-claude-code-worker-mcp
 ## 依赖
 
 - Node.js 20+
+- 平台支持
+  - macOS 和 Linux 是主要测试目标
+  - Windows 是 best-effort 支持：只要 `claude` / `claude.cmd` 在 `PATH` 中可用就会尝试运行，但还需要更多真实 Windows 机器验证
 - Claude Code CLI
   - setup 发现没有 `claude` 时，会询问是否运行 `npm install -g @anthropic-ai/claude-code`
   - 或者使用 `PATH` 里的现有 `claude`
-  - 或者设置 `CLAUDE_BIN=/absolute/path/to/claude`
+  - 或者把 `CLAUDE_BIN` 设置为 `claude`、`claude.cmd` 或其他 Claude Code 可执行文件的绝对路径
 - DeepSeek API key
   - 可以用 `ANTHROPIC_AUTH_TOKEN`
   - 或 `DEEPSEEK_API_KEY_FILE`

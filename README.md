@@ -47,7 +47,7 @@ Point the MCP client at the repo script:
 Install directly from GitHub:
 
 ```bash
-npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.19-beta.3
+npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.4
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
 ```
@@ -73,10 +73,15 @@ deepseek-code-worker-mcp --doctor
 ## Requirements
 
 - Node.js 20+
+- Platform support
+  - macOS and Linux are the primary tested targets
+  - Windows is supported on a best-effort basis when `claude` / `claude.cmd` is
+    available on `PATH`, but still needs broader real-machine testing
 - A working Claude Code CLI executable
   - setup can install it with confirmation if `claude` is missing
   - or use an existing `claude` available on `PATH`
-  - or set `CLAUDE_BIN=/absolute/path/to/claude`
+  - or set `CLAUDE_BIN` to the absolute path of `claude`, `claude.cmd`, or
+    another Claude Code executable
 - DeepSeek auth for the bundled `claude-deepseek` launcher
   - either `ANTHROPIC_AUTH_TOKEN`
   - or `DEEPSEEK_API_KEY_FILE`
@@ -379,10 +384,10 @@ checks, and may return `partial_cancelled` when those checks pass. Treat worker
 natural-language summaries as advisory only; `checks_run`, `policy`, and
 `files_changed` are the authoritative validation record.
 
-Running jobs write local state under:
+Running jobs write local state under the OS temp directory:
 
 ```text
-/tmp/deepseek-code-worker/jobs/<job_id>/
+<os-temp>/deepseek-code-worker/jobs/<job_id>/
   status.json
   before-snapshot.json
   stdout.log
@@ -507,6 +512,12 @@ and partial JSON line handling.
 
 ## Changelog
 
+### 0.3.20
+
+- Added best-effort Windows support by using the OS temp directory, platform PATH
+  delimiters, Windows executable extensions, and platform-specific check shells.
+- README now documents Windows as experimental/best-effort.
+
 ### 0.3.19
 
 - README now starts with a publish-ready quick start for cloned repos and future
@@ -562,7 +573,7 @@ and partial JSON line handling.
 
 ### 0.3.11
 
-- Added durable job restore from `/tmp/deepseek-code-worker/jobs`.
+- Added durable job restore under the OS temp directory.
 - Added `orphaned_after_mcp_restart` status for persisted running jobs whose PID
   is no longer alive.
 - Split config and stream event parsing into `src/core`.
