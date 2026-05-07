@@ -1,0 +1,41 @@
+{
+  "name": "deepseek-claude-code-worker-mcp",
+  "version": "0.3.19",
+  "description": "MCP server that runs DeepSeek V4 as a Claude Code coding worker with job status, restore, scoped permissions, and review artifacts.",
+  "keywords": [
+    "mcp",
+    "deepseek",
+    "claude-code",
+    "codex",
+    "coding-agent"
+  ],
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "deepseek-code-worker-mcp": "bin/deepseek-code-worker-mcp.mjs",
+    "claude-deepseek": "bin/claude-deepseek.mjs",
+    "claude-deepseek-pro": "bin/claude-deepseek.mjs",
+    "claude-deepseek-flash": "bin/claude-deepseek.mjs",
+    "deepseek-code-worker-setup": "bin/deepseek-code-worker-setup.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "bin",
+    "src",
+    "scripts",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "mcp:deepseek-worker": "node src/deepseek-worker-mcp.mjs",
+    "mcp:doctor": "node src/deepseek-worker-mcp.mjs --doctor",
+    "mcp:setup": "node src/deepseek-worker-mcp.mjs --setup",
+    "mcp:smoke": "node scripts/smoke-deepseek-worker-mcp.mjs",
+    "mcp:smoke:permission": "node scripts/smoke-permission-hook.mjs",
+    "mcp:smoke:restore": "node scripts/smoke-job-restore.mjs",
+    "mcp:smoke:stream": "node scripts/smoke-stream-events.mjs"
+  }
+}
