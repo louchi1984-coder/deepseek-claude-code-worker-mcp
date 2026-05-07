@@ -60,7 +60,7 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.6
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.7
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
 ```
