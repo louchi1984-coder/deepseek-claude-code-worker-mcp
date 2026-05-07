@@ -31,7 +31,8 @@
     "src",
     "scripts",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "README.zh-CN.md"
   ],
   "scripts": {
     "mcp:deepseek-worker": "node src/deepseek-worker-mcp.mjs",

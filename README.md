@@ -1,5 +1,7 @@
 # DeepSeek Code Worker MCP
 
+Languages: [English](README.md) | [简体中文](README.zh-CN.md)
+
 Pure-execution MCP server that lets Codex, Claude Desktop, or another MCP host
 delegate real workspace code changes to DeepSeek V4 through Claude Code.
 
