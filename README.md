@@ -44,18 +44,18 @@ Point the MCP client at the repo script:
 }
 ```
 
-Install directly from GitHub:
+Install from npm:
 
 ```bash
-npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.4
+npm i -g deepseek-worker-mcp
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
 ```
 
-After this package is published to npm, install and configure the binary:
+Before the npm package is available in your registry, install directly from GitHub:
 
 ```bash
-npm install -g deepseek-claude-code-worker-mcp
+npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.4
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
 ```

@@ -18,10 +18,10 @@ MCP 宿主
 
 ## 快速开始
 
-从 GitHub 直接安装：
+从 npm 安装：
 
 ```bash
-npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.4
+npm i -g deepseek-worker-mcp
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
 ```
@@ -61,10 +61,10 @@ npm run mcp:doctor
 }
 ```
 
-发布到 npm 后，可以改用：
+如果 npm registry 还不可用，可以先从 GitHub 安装：
 
 ```bash
-npm install -g deepseek-claude-code-worker-mcp
+npm install -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.4
 ```
 
 ## 依赖
