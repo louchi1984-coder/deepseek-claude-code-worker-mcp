@@ -51,7 +51,7 @@ MCP 宿主
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.26
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.27
 ```
 
 全局交互安装会自动运行 setup。setup 会检查 Claude Code，缺失时询问是否安装；如果没有 DeepSeek key，会提示输入并保存；最后打印 MCP 配置。非交互安装不会卡住 npm，只会打印手动下一步。
@@ -59,7 +59,7 @@ npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.26
 不想全局安装时，可以先用 npx 验证 GitHub 包能否拉起：
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.26 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.27 --doctor
 ```
 
 MCP 配置：
