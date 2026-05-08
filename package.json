@@ -17,6 +17,7 @@
   "private": false,
   "type": "module",
   "bin": {
+    "deepseek-worker-mcp": "bin/deepseek-code-worker-mcp.mjs",
     "deepseek-code-worker-mcp": "bin/deepseek-code-worker-mcp.mjs",
     "claude-deepseek": "bin/claude-deepseek.mjs",
     "claude-deepseek-pro": "bin/claude-deepseek.mjs",

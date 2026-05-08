@@ -38,9 +38,15 @@ MCP 宿主
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.8
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.9
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
+```
+
+不想全局安装时，可以先用 npx 验证 GitHub 包能否拉起：
+
+```bash
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.9 --doctor
 ```
 
 MCP 配置：

@@ -60,9 +60,15 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.8
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.9
 deepseek-code-worker-setup
 deepseek-code-worker-mcp --doctor
+```
+
+To smoke-test the GitHub package without installing globally:
+
+```bash
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.9 --doctor
 ```
 
 Configure the MCP client:
