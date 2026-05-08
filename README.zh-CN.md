@@ -51,7 +51,7 @@ MCP 宿主
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.24
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.25
 ```
 
 全局交互安装会自动运行 setup。setup 会检查 Claude Code，缺失时询问是否安装；如果没有 DeepSeek key，会提示输入并保存；最后打印 MCP 配置。非交互安装不会卡住 npm，只会打印手动下一步。
@@ -59,7 +59,7 @@ npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.24
 不想全局安装时，可以先用 npx 验证 GitHub 包能否拉起：
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.24 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.25 --doctor
 ```
 
 MCP 配置：
@@ -185,6 +185,7 @@ MCP JSON-RPC 正常运行时不会弹交互，也不会在协议里询问 key。
 - 状态轮询默认保持紧凑；不要在 running 时请求 logs/events/diffs，除非是在调试
 - worker 还是 `running` 时只观察状态和活动，不审查 diff
 - worker 到达 `completed` / `failed` / `cancel_requested` / `orphaned` 后，再审 `file_diffs`、`policy`、`checks_run`
+
 思考时间预期是“单次连续 thinking/quiet 段”，不是累计 job 总时长：
 
 | 模型 / 用例 | 正常单次 thinking 或 quiet 段 |

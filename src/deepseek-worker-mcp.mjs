@@ -1725,10 +1725,10 @@ async function waitForJob(args) {
     error: errorForOutput(job.error, options),
     observations,
     suggested_action: !waitRequested
-      ? "No foreground wait was requested. Worker is still running; poll with deepseek_get_job or deepseek_tail_job around next_poll.after_ms."
+      ? "No foreground wait was requested. Worker is still running; use deepseek_get_job for compact status later if needed."
       : hitForegroundCap
-      ? "Foreground observation cap elapsed before caller max_wait_ms. Worker is still running; call deepseek_get_job or deepseek_tail_job, or wait again later."
-      : "Observation window elapsed. Worker is still running; do not cancel or review artifacts solely because of quiet/elapsed time. Poll status again later unless the user explicitly asks to stop.",
+      ? "Foreground observation cap elapsed before caller max_wait_ms. Worker is still running; use deepseek_get_job for compact status later if needed."
+      : "Observation window elapsed. Worker is still running; do not cancel or review artifacts solely because of quiet/elapsed time.",
   };
 }
 
@@ -1746,7 +1746,7 @@ function waitDecision(job) {
     return {
       status: "failed",
       reason: "job_failed",
-      suggested_action: "inspect failure_reason, policy, checks_run, stdout_tail, and stderr_tail",
+      suggested_action: "inspect failure_reason, policy, and checks_run; request include_logs only when debugging needs worker logs",
     };
   }
   if (job.status === "cancel_requested") {
@@ -1879,8 +1879,7 @@ function nextPollHint(job) {
   return {
     after_ms: recommendedPollAfterMs(job),
     preferred_tool: "deepseek_get_job",
-    alternate_tool: "deepseek_tail_job",
-    instruction: "Poll once after this interval. Do not block the foreground conversation with a long wait; use get_job or tail_job to observe status.",
+    instruction: "Optional compact status-check hint. Do not treat this as a timeout, watchdog, or instruction to keep polling indefinitely.",
   };
 }
 
@@ -1960,9 +1959,9 @@ function suggestedAction(job, idle, changedFiles) {
     return "worker is alive and quiet after producing files; do not review partial artifacts or cancel solely because of quiet time";
   }
   if (job.process_alive && changedFiles.length > 0) return "monitor until completion; changed files are provisional while the worker is running";
-  if (job.process_alive && job.last_stream_kind === "thinking_delta") return "continue polling; model is still streaming thinking deltas";
-  if (job.process_alive && idle.quiet) return "continue polling; quiet alive process is inconclusive";
-  if (job.process_alive) return "continue polling";
+  if (job.process_alive && job.last_stream_kind === "thinking_delta") return "worker is still running and recently streamed thinking activity";
+  if (job.process_alive && idle.quiet) return "worker is still running; quiet alive process is inconclusive";
+  if (job.process_alive) return "worker is still running";
   return "inspect job result or error";
 }
 

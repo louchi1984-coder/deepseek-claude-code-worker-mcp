@@ -77,7 +77,7 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.24
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.25
 ```
 
 Global interactive installs run setup automatically. Setup checks Claude Code,
@@ -88,7 +88,7 @@ manual next step instead of blocking npm.
 To smoke-test the GitHub package without installing globally:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.24 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.25 --doctor
 ```
 
 Configure the MCP client:
@@ -444,8 +444,9 @@ model is definitely thinking:
   `alive_quiet_with_workspace_changes`, `alive_recent_stream_event`,
   `process_not_alive`, `completed`, `failed`, `cancel_requested`, or `unknown`
 - `suggested_action`: host-facing next step based on observable state
-- `last_event_at`, `last_event_type`, `last_event_summary`, and `recent_events`:
-  compact Claude Code stream event details
+- `last_event_at`, `last_event_type`, and `last_event_summary`: compact Claude
+  Code stream event details. `recent_events` is returned only when
+  `include_events: true`.
 - `process_alive` and `process_pid`: whether the child process is still alive
 - `idle_seconds` and `quiet`: how long the worker has produced no stdout/stderr.
   These are status facts only, not cancellation or review thresholds.
@@ -459,8 +460,9 @@ is not proof that the process is dead. Do not cancel, restart, take over, or
 review partial artifacts solely because a running job is quiet.
 
 In fallback `json` mode, status falls back to process/log/workspace observation
-because Claude Code emits a single final JSON object. Start/tail/result payloads
-include `claude_args_preview` so the actual Claude Code argv is visible.
+because Claude Code emits a single final JSON object. Start responses include
+`claude_args_preview`; status/result responses include it only when
+`include_logs: true`.
 
 Async jobs do not have a worker timeout by default. This is intentional: there is no
 official or reliable wall-clock bound for DeepSeek thinking time. `timeout_ms` is
@@ -542,18 +544,18 @@ open. When the host closes stdin or sends `SIGTERM` / `SIGINT`, the server shuts
 itself down and asks any still-running worker child process to stop, so stale MCP
 server processes should not accumulate after reconnects.
 
-Completed results include snapshot-based review data even when the workspace is not
-a git repository:
+Completed results include compact snapshot-based review data even when the
+workspace is not a git repository:
 
 - `files_changed` and `change_count`
 - `diff_available`
-- `file_diffs`: per-file unified diffs for text files, or summaries for large,
-  binary, or unreadable files
 - `review_summary`: compact fields for host UIs and calling models:
   `files_changed`, `change_count`, `policy_ok`, `checks_passed`,
   `checks_count`, `requires_review`, `diff_available`, `failure_reason`,
   `last_successful_tool`, `last_failed_tool`, `last_error_kind`, and
   `tool_calls_since_last_change`
+
+Pass `include_diff: true` when terminal review needs `file_diffs`.
 
 The worker prompt is hardened for tool behavior: it asks Claude Code to prefer
 Read/Edit or MultiEdit, avoid Bash `cat`, shell redirection, and heredocs for
