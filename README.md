@@ -77,7 +77,7 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.25
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.26
 ```
 
 Global interactive installs run setup automatically. Setup checks Claude Code,
@@ -88,7 +88,7 @@ manual next step instead of blocking npm.
 To smoke-test the GitHub package without installing globally:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.25 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.26 --doctor
 ```
 
 Configure the MCP client:
@@ -448,6 +448,9 @@ model is definitely thinking:
   Code stream event details. `recent_events` is returned only when
   `include_events: true`.
 - `process_alive` and `process_pid`: whether the child process is still alive
+- `pending_tool_use`, `pending_tool_duration_ms`, and
+  `pending_tool_duration_seconds`: visible when Claude Code emitted a tool_use
+  without a matching tool_result yet
 - `idle_seconds` and `quiet`: how long the worker has produced no stdout/stderr.
   These are status facts only, not cancellation or review thresholds.
 - `last_output_at`: latest worker log timestamp, if any
@@ -558,9 +561,11 @@ workspace is not a git repository:
 Pass `include_diff: true` when terminal review needs `file_diffs`.
 
 The worker prompt is hardened for tool behavior: it asks Claude Code to prefer
-Read/Edit or MultiEdit, avoid Bash `cat`, shell redirection, and heredocs for
-normal source edits, list changed files, run requested checks, and stop with a
-clear blocker instead of retrying indefinitely after permission/tool failures.
+Read/Edit or MultiEdit, allows safe read-only Bash fallback such as `ls`, `wc`,
+`cat`, or `sed -n` when Read is blocked or repeatedly fails, avoids Bash writes,
+shell redirection, and heredocs for normal source edits, lists changed files,
+runs requested checks, and stops with a clear blocker instead of retrying
+indefinitely after permission/tool failures.
 
 ## Success Contract
 

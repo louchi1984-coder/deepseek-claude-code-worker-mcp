@@ -105,6 +105,9 @@ writeFileSync(join(runningJobDir, "status.json"), JSON.stringify({
   process_alive: true,
   process_pid: runningPlaceholder.pid,
   output_format: "stream-json",
+  pending_tool_use: "Read",
+  last_tool_use_at: new Date(Date.now() - 120_000).toISOString(),
+  last_tool_name: "Read",
   ignored_dirs: [".git", "node_modules"],
   allowedRoots: [cwd],
   forbiddenPaths: [],
@@ -179,6 +182,8 @@ console.log(JSON.stringify({
   no_wait_reason: noWaitJob.reason,
   running_no_wait_status: runningNoWaitJob.status,
   running_no_wait_reason: runningNoWaitJob.reason,
+  running_pending_tool_use: runningNoWaitJob.progress?.pending_tool_use,
+  running_pending_tool_duration_seconds: runningNoWaitJob.progress?.pending_tool_duration_seconds,
   default_get_has_logs: hasKeyDeep(getJob, "stdout_tail") || hasKeyDeep(getJob, "stderr_tail"),
   default_get_has_events: hasKeyDeep(getJob, "recent_events"),
   default_get_has_diffs: hasKeyDeep(getJob, "file_diffs"),
@@ -199,6 +204,8 @@ if (
   || noWaitJob.reason !== "orphaned_after_mcp_restart"
   || runningNoWaitJob.status !== "running"
   || runningNoWaitJob.reason !== "no_wait_requested"
+  || runningNoWaitJob.progress?.pending_tool_use !== "Read"
+  || !(runningNoWaitJob.progress?.pending_tool_duration_seconds >= 1)
   || hasKeyDeep(getJob, "stdout_tail")
   || hasKeyDeep(getJob, "stderr_tail")
   || hasKeyDeep(getJob, "recent_events")

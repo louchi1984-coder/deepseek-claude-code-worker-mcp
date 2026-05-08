@@ -51,7 +51,7 @@ MCP 宿主
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.25
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.26
 ```
 
 全局交互安装会自动运行 setup。setup 会检查 Claude Code，缺失时询问是否安装；如果没有 DeepSeek key，会提示输入并保存；最后打印 MCP 配置。非交互安装不会卡住 npm，只会打印手动下一步。
@@ -59,7 +59,7 @@ npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.25
 不想全局安装时，可以先用 npx 验证 GitHub 包能否拉起：
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.25 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.26 --doctor
 ```
 
 MCP 配置：
@@ -202,7 +202,7 @@ MCP JSON-RPC 正常运行时不会弹交互，也不会在协议里询问 key。
 ## 工具
 
 - `deepseek_start_implementation`：启动后台实现任务，返回 `job_id`
-- `deepseek_get_job`：读取 job 状态和结构化进度；默认不带大日志/diff
+- `deepseek_get_job`：读取 job 状态和结构化进度；默认不带大日志/diff；如果有未返回的 tool_use，会包含 `pending_tool_duration_seconds`
 - `deepseek_tail_job`：读取紧凑状态；需要日志时显式传 `include_logs: true`
 - `deepseek_wait_for_job`：短窗口观察；完成就返回终态，没完成就返回 `running`
 - `deepseek_cancel_job`：请求取消 running job

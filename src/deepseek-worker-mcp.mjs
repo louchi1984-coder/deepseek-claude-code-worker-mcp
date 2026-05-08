@@ -982,7 +982,7 @@ function buildWorkerPrompt(args, allowedRoots, forbiddenPaths) {
     "Do not spawn subagents or use Task unless the caller explicitly asks for nested worker delegation.",
     "Do not write plans, reports, or documentation unless the task explicitly asks for documentation.",
     "Do not stop after analysis. Edit files directly.",
-    "Prefer Claude Code Read for reading files; do not use Bash cat/sed just to read source files.",
+    "Prefer Claude Code Read for reading files. If Read is unavailable, blocked, or repeatedly fails, you may use safe read-only Bash fallback such as ls, wc, cat, or sed -n. Do not use Bash to write files.",
     "Prefer Edit or MultiEdit for file changes; do not use shell redirection, heredoc, or script-generated rewrites for normal edits.",
     "If a tool or permission is blocked, report the blocker and stop instead of retrying in place.",
     "After editing, list changed files exactly and run requested checks when possible.",
@@ -1777,6 +1777,8 @@ function compactProgress(progress) {
     last_event_summary: progress.last_event_summary,
     last_stream_kind: progress.last_stream_kind,
     pending_tool_use: progress.pending_tool_use,
+    pending_tool_duration_ms: progress.pending_tool_duration_ms,
+    pending_tool_duration_seconds: progress.pending_tool_duration_seconds,
     last_successful_tool: progress.last_successful_tool,
     last_failed_tool: progress.last_failed_tool,
     last_error_kind: progress.last_error_kind,
@@ -1811,6 +1813,7 @@ function progressForJob(job) {
       last_event_summary: job.last_event_summary ?? null,
       last_stream_kind: job.last_stream_kind ?? null,
       pending_tool_use: job.pending_tool_use ?? null,
+      ...pendingToolDuration(job),
       last_tool_name: job.last_tool_name ?? null,
       ...idle,
     };
@@ -1838,6 +1841,7 @@ function progressForJob(job) {
     last_event_summary: job.last_event_summary ?? null,
     last_stream_kind: job.last_stream_kind ?? null,
     pending_tool_use: job.pending_tool_use ?? null,
+    ...pendingToolDuration(job),
     last_tool_name: job.last_tool_name ?? null,
     last_tool_use_at: job.last_tool_use_at ?? null,
     last_tool_result_at: job.last_tool_result_at ?? null,
@@ -1866,6 +1870,27 @@ function progressForJob(job) {
 
 function recommendedPollAfterMs(job) {
   return Number(job?.recommended_poll_after_ms ?? DEFAULT_POLL_AFTER_MS);
+}
+
+function pendingToolDuration(job, now = Date.now()) {
+  if (!job?.pending_tool_use || !job.last_tool_use_at) {
+    return {
+      pending_tool_duration_ms: null,
+      pending_tool_duration_seconds: null,
+    };
+  }
+  const started = Date.parse(job.last_tool_use_at);
+  if (!Number.isFinite(started)) {
+    return {
+      pending_tool_duration_ms: null,
+      pending_tool_duration_seconds: null,
+    };
+  }
+  const durationMs = Math.max(0, now - started);
+  return {
+    pending_tool_duration_ms: durationMs,
+    pending_tool_duration_seconds: Math.floor(durationMs / 1000),
+  };
 }
 
 function nextPollHint(job) {
@@ -2071,6 +2096,7 @@ function writeJobStatus(job) {
     last_failed_tool: job.last_failed_tool,
     last_error_kind: job.last_error_kind,
     tool_calls_since_last_change: job.tool_calls_since_last_change,
+    ...pendingToolDuration(job),
     last_observed_change_count: job.last_observed_change_count,
     recent_events: job.stream_events ?? [],
     last_output_at: job.last_output_at,
