@@ -2038,7 +2038,7 @@ function implementationSchema() {
       check_timeout_ms: { type: "number", description: "Per-check timeout. Defaults to 10 minutes." },
       poll_after_ms: {
         type: "number",
-        description: "Suggested async polling interval returned to callers. Defaults from use_case and is capped at 90 seconds for running jobs.",
+        description: "Suggested async polling interval returned to callers. Defaults from use_case and is capped at 60 seconds for running jobs.",
       },
       idle_after_ms: {
         type: "number",
