@@ -40,7 +40,7 @@ MCP 宿主
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.14
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.15
 ```
 
 全局交互安装会自动运行 setup。setup 会检查 Claude Code，缺失时询问是否安装；如果没有 DeepSeek key，会提示输入并保存；最后打印 MCP 配置。非交互安装不会卡住 npm，只会打印手动下一步。
@@ -48,7 +48,7 @@ npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.14
 不想全局安装时，可以先用 npx 验证 GitHub 包能否拉起：
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.14 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.15 --doctor
 ```
 
 MCP 配置：
@@ -173,6 +173,7 @@ MCP JSON-RPC 正常运行时不会弹交互，也不会在协议里询问 key。
 - Codex 每隔约 90 秒看一次状态
 - worker 还是 `running` 时只观察状态和活动，不审查 diff
 - worker 到达 `completed` / `failed` / `cancel_requested` / `orphaned` 后，再审 `file_diffs`、`policy`、`checks_run`
+- quiet/静默只是状态事实，不是取消、接管或审查半成品的依据。只要进程还活着，就继续轮询，除非用户明确要求停止，或者 job 进入终态。
 
 不要因为 DeepSeek 想得久就取消或重启。思考时间预期是“单次连续 thinking/quiet 段”，不是累计 job 总时长：
 
@@ -183,7 +184,7 @@ MCP JSON-RPC 正常运行时不会弹交互，也不会在协议里询问 key。
 | `deepseek-v4-pro[1m]`, debug/agentic/complex/long-context | 约 10 分钟 |
 | `deepseek-v4-pro[1m]`, `docs_generation` | 5-10 分钟 |
 
-`deepseek_wait_for_job` 只是短前台 heartbeat。它不会杀 worker；没完成就返回 `running`，让调用方稍后继续看。
+`deepseek_wait_for_job` 只是短前台 heartbeat。它不会杀 worker；没完成就返回 `running`，让调用方稍后继续看。`max_wait_elapsed` / `foreground_wait_cap_elapsed` 只表示这次观察窗口结束，不表示应该取消。
 
 不要把所有任务都交给 worker。它最适合边界清楚的实现任务：Codex 发一次任务，DeepSeek 执行，Codex 最后审紧凑产物。一两行小改动、需求还没想清楚的讨论、高风险架构判断，应该先留在 Codex 主线程里处理。
 

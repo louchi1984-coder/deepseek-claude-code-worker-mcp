@@ -1612,7 +1612,7 @@ async function waitForJob(args) {
   const progress = progressForJob(job);
   const hitForegroundCap = requestedMaxWaitMs > maxWaitMs;
   return {
-    status: hitForegroundCap ? "running" : "running_needs_review",
+    status: "running",
     reason: hitForegroundCap ? "foreground_wait_cap_elapsed" : "max_wait_elapsed",
     job_id: job.id,
     elapsed_wait_ms: Date.now() - started,
@@ -1626,7 +1626,7 @@ async function waitForJob(args) {
     observations,
     suggested_action: hitForegroundCap
       ? "Foreground observation cap elapsed before caller max_wait_ms. Worker is still running; call deepseek_get_job or deepseek_tail_job, or wait again later."
-      : "caller max_wait_ms elapsed; do not kill automatically. Decide whether to wait again, inspect tail, or cancel and review artifacts.",
+      : "Observation window elapsed. Worker is still running; do not cancel or review artifacts solely because of quiet/elapsed time. Poll status again later unless the user explicitly asks to stop.",
   };
 }
 
@@ -1794,6 +1794,8 @@ function idleStatus(job) {
     idle_seconds: Math.floor(idleMs / 1000),
     quiet: idleMs >= threshold,
     quiet_threshold_ms: threshold,
+    quiet_is_cancellation_signal: false,
+    quiet_guidance: "Quiet output is observational only. Do not cancel, restart, take over, or review partial artifacts solely because this value is true.",
   };
 }
 
@@ -1830,12 +1832,12 @@ function suggestedAction(job, idle, changedFiles) {
   if (job.status === "failed") return "inspect failure_reason, policy, checks_run, and worker logs";
   if (job.status === "cancel_requested") return "wait for artifact review after cancellation";
   if (job.process_alive && job.pending_tool_use && changedFiles.length === 0 && idle.quiet) {
-    return "worker is quiet after a tool_use without a matching tool_result; wait_for_job may return needs_review soon";
+    return "worker is alive and quiet after a tool_use without a matching tool_result; keep observing unless there is an explicit error or the user asks to stop";
   }
   if (job.process_alive && changedFiles.length > 0 && idle.quiet) {
-    return "worker is alive and quiet after producing files; wait at least the file-change quiet threshold before cancelling";
+    return "worker is alive and quiet after producing files; do not review partial artifacts or cancel solely because of quiet time";
   }
-  if (job.process_alive && changedFiles.length > 0) return "monitor until completion or cancellation; changed files are available for local review";
+  if (job.process_alive && changedFiles.length > 0) return "monitor until completion; changed files are provisional while the worker is running";
   if (job.process_alive && job.last_stream_kind === "thinking_delta") return "continue polling; model is still streaming thinking deltas";
   if (job.process_alive && idle.quiet) return "continue polling; quiet alive process is inconclusive";
   if (job.process_alive) return "continue polling";
@@ -2009,7 +2011,7 @@ function implementationSchema() {
       },
       idle_after_ms: {
         type: "number",
-        description: "Quiet-output threshold for status messages. Defaults from use_case.",
+        description: "Quiet-output threshold for status messages only. This is not a cancellation, takeover, review, or failure threshold.",
       },
       allow_docs_only: { type: "boolean", description: "Allow documentation-only diffs. Defaults to false." },
       model: { type: "string", description: "Optional Claude Code model override passed to claude-deepseek. Defaults from use_case." },

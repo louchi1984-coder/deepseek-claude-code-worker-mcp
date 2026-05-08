@@ -65,7 +65,7 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.14
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.15
 ```
 
 Global interactive installs run setup automatically. Setup checks Claude Code,
@@ -76,7 +76,7 @@ manual next step instead of blocking npm.
 To smoke-test the GitHub package without installing globally:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.14 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.15 --doctor
 ```
 
 Configure the MCP client:
@@ -245,6 +245,9 @@ Default rules for callers:
 - While the worker is `running`, only observe status/activity. Do not analyze
   `file_diffs`, `policy`, or `checks_run` until the job is `completed`, `failed`,
   `cancel_requested`, or `orphaned`.
+- Quiet time is never a cancellation, takeover, or partial-review signal. If the
+  process is still alive, keep polling unless the user explicitly asks to stop or
+  the job reaches a terminal status.
 - Use `deepseek_implement_in_workspace` only for tiny, quick edits.
 - Standard implementation uses MCP-managed `dontAsk` permissions with a
   `PreToolUse` hook, so callers should not need to approve normal Read/Edit
@@ -434,13 +437,15 @@ model is definitely thinking:
 - `last_event_at`, `last_event_type`, `last_event_summary`, and `recent_events`:
   compact Claude Code stream event details
 - `process_alive` and `process_pid`: whether the child process is still alive
-- `idle_seconds` and `quiet`: how long the worker has produced no stdout/stderr
+- `idle_seconds` and `quiet`: how long the worker has produced no stdout/stderr.
+  These are status facts only, not cancellation or review thresholds.
 - `last_output_at`: latest worker log timestamp, if any
 - `recommended_poll_after_ms`: suggested time before polling again
 
 For example, `observed_state: "alive_quiet_no_recent_output"` means only that the
 process is still alive and quiet. It is not proof that DeepSeek is thinking, and it
-is not proof that the process is dead.
+is not proof that the process is dead. Do not cancel, restart, take over, or
+review partial artifacts solely because a running job is quiet.
 
 In fallback `json` mode, status falls back to process/log/workspace observation
 because Claude Code emits a single final JSON object. Start/tail/result payloads
@@ -460,11 +465,14 @@ the docs-only policy, and pass any completed checks, the result status is
 accepting it. If the worker changed files outside the allowed scope, the policy
 failure still wins and the result remains failed.
 
-Cancellation is artifact-aware too. If a worker is alive but quiet after producing
-files, `deepseek_cancel_job` preserves the artifacts, runs the MCP-level policy and
-checks, and may return `partial_cancelled` when those checks pass. Treat worker
-natural-language summaries as advisory only; `checks_run`, `policy`, and
-`files_changed` are the authoritative validation record.
+Cancellation is artifact-aware too, but it is an explicit stop action, not an
+idle policy. Use `deepseek_cancel_job` only when the user asks to stop, the task
+is clearly obsolete, or there is a terminal/error condition that makes continued
+execution pointless. If cancellation happens after files were produced, the MCP
+preserves the artifacts, runs the MCP-level policy and checks, and may return
+`partial_cancelled` when those checks pass. Treat worker natural-language
+summaries as advisory only; `checks_run`, `policy`, and `files_changed` are the
+authoritative validation record.
 
 Running jobs write local state under the OS temp directory:
 
@@ -508,7 +516,8 @@ loops inside the MCP server for a short foreground window, about 90 seconds by
 default. If the worker completes or fails during that window, it returns the
 terminal status. Otherwise it returns `status: "running"` with recent activity,
 changed files so far, and `reason: "foreground_wait_cap_elapsed"` or
-`reason: "max_wait_elapsed"`. It never cancels the worker by itself.
+`reason: "max_wait_elapsed"`. It never cancels the worker by itself, and elapsed
+observation time is not a recommendation to cancel.
 
 Running status is only a heartbeat. Do not review diffs, policy, or checks while
 the worker is still running unless the user explicitly asks for partial review.
