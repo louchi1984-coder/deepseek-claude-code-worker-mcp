@@ -924,7 +924,11 @@ function normalizeArgs(args, options = {}) {
     args.timeout_ms,
     options.sync ? DEFAULT_SYNC_TIMEOUT_MS : null
   );
-  const poll_after_ms = Number(args.poll_after_ms ?? preset.poll_after_ms ?? DEFAULT_POLL_AFTER_MS);
+  const poll_after_ms = positiveNumber(
+    args.poll_after_ms,
+    preset.poll_after_ms ?? DEFAULT_POLL_AFTER_MS,
+    "poll_after_ms"
+  );
   const idle_after_ms = Number(args.idle_after_ms ?? preset.idle_after_ms ?? DEFAULT_IDLE_AFTER_MS);
   const allowed_dirs = arrayOfStrings(args.allowed_dirs);
   const forbidden_paths = arrayOfStrings(args.forbidden_paths).length > 0
@@ -1583,14 +1587,32 @@ async function waitForJob(args) {
     return { status: "not_found", job_id: args.job_id };
   }
 
-  const requestedMaxWaitMs = positiveNumber(args.max_wait_ms, DEFAULT_FOREGROUND_WAIT_CAP_MS, "max_wait_ms");
+  const waitRequested = args.max_wait_ms != null;
+  const requestedMaxWaitMs = waitRequested
+    ? positiveNumber(args.max_wait_ms, DEFAULT_FOREGROUND_WAIT_CAP_MS, "max_wait_ms")
+    : 0;
   const maxWaitMs = Math.min(requestedMaxWaitMs, DEFAULT_FOREGROUND_WAIT_CAP_MS);
   const defaultPoll = Math.min(job.recommended_poll_after_ms ?? DEFAULT_POLL_AFTER_MS, 30 * 1000);
   const pollIntervalMs = positiveNumber(args.poll_interval_ms, defaultPoll, "poll_interval_ms");
   const started = Date.now();
   const observations = [];
 
-  while (Date.now() - started <= maxWaitMs) {
+  const initialProgress = progressForJob(job);
+  observations.push(compactProgress(initialProgress));
+  const initialDecision = waitDecision(job);
+  if (initialDecision) {
+    return {
+      ...initialDecision,
+      job_id: job.id,
+      elapsed_wait_ms: Date.now() - started,
+      progress: initialProgress,
+      result: job.result,
+      error: job.error,
+      observations,
+    };
+  }
+
+  while (maxWaitMs > 0 && Date.now() - started <= maxWaitMs) {
     const progress = progressForJob(job);
     observations.push(compactProgress(progress));
     const decision = waitDecision(job);
@@ -1616,7 +1638,9 @@ async function waitForJob(args) {
   const hitForegroundCap = requestedMaxWaitMs > maxWaitMs;
   return {
     status: "running",
-    reason: hitForegroundCap ? "foreground_wait_cap_elapsed" : "max_wait_elapsed",
+    reason: !waitRequested
+      ? "no_wait_requested"
+      : hitForegroundCap ? "foreground_wait_cap_elapsed" : "max_wait_elapsed",
     job_id: job.id,
     elapsed_wait_ms: Date.now() - started,
     requested_max_wait_ms: requestedMaxWaitMs,
@@ -1627,7 +1651,9 @@ async function waitForJob(args) {
     result: job.result,
     error: job.error,
     observations,
-    suggested_action: hitForegroundCap
+    suggested_action: !waitRequested
+      ? "No foreground wait was requested. Worker is still running; poll with deepseek_get_job or deepseek_tail_job around next_poll.after_ms."
+      : hitForegroundCap
       ? "Foreground observation cap elapsed before caller max_wait_ms. Worker is still running; call deepseek_get_job or deepseek_tail_job, or wait again later."
       : "Observation window elapsed. Worker is still running; do not cancel or review artifacts solely because of quiet/elapsed time. Poll status again later unless the user explicitly asks to stop.",
   };
