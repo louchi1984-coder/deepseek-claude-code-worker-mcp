@@ -38,7 +38,7 @@ MCP 宿主
 - **异步 worker job**：启动任务后返回 `job_id`，worker 不依赖单次前台工具调用存活。
 - **状态查询工具**：`deepseek_get_job` 读取紧凑状态；`deepseek_wait_for_job` 只用于短暂观察，不当主循环。
 - **紧凑结构化状态**：`get_job` / `tail_job` 默认只返回 phase、进程存活、idle 时间、已变更文件和建议轮询时间；日志、stream 事件和 unified diff 需要显式开启，避免 Codex 在终态审查前浪费 token 读证据。
-- **DeepSeek 思考时间预期**：文档明确告诉调用方，连续 thinking/quiet 几分钟甚至 Pro 约 10 分钟可以是正常现象。
+- **DeepSeek 思考时间预期**：DeepSeek V4 Pro 在复杂代码任务里单段思考约 10 分钟是合理的。
 - **权限护栏**：默认 worker 使用 MCP 生成的 Claude Code `dontAsk` settings，并通过 `PreToolUse` hook 控制危险 Bash、禁用路径和越界写入；`bypassPermissions` 默认禁用。
 - **scoped patch 模式**：调用方可以传窄 `allowed_dirs`，让 worker 只能在指定范围内改。
 - **快照 diff 和 policy**：MCP 在任务前后做 workspace snapshot，返回 changed files、unified diff、forbidden path、docs-only policy、checks 结果。
@@ -51,7 +51,7 @@ MCP 宿主
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.22
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.23
 ```
 
 全局交互安装会自动运行 setup。setup 会检查 Claude Code，缺失时询问是否安装；如果没有 DeepSeek key，会提示输入并保存；最后打印 MCP 配置。非交互安装不会卡住 npm，只会打印手动下一步。
@@ -59,7 +59,7 @@ npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.22
 不想全局安装时，可以先用 npx 验证 GitHub 包能否拉起：
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.22 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.23 --doctor
 ```
 
 MCP 配置：
@@ -185,16 +185,7 @@ MCP JSON-RPC 正常运行时不会弹交互，也不会在协议里询问 key。
 - 状态轮询默认保持紧凑；不要在 running 时请求 logs/events/diffs，除非是在调试
 - worker 还是 `running` 时只观察状态和活动，不审查 diff
 - worker 到达 `completed` / `failed` / `cancel_requested` / `orphaned` 后，再审 `file_diffs`、`policy`、`checks_run`
-- quiet/静默只是状态事实，不是取消、接管或审查半成品的依据。
-
-不要因为 DeepSeek 想得久就取消或重启。思考时间预期是“单次连续 thinking/quiet 段”，不是累计 job 总时长：
-
-| 模型 / 用例 | 正常单次 thinking 或 quiet 段 |
-| --- | --- |
-| `deepseek-v4-flash`, `fast_patch` | 1-3 分钟 |
-| `deepseek-v4-flash`, 普通实现 | 3-5 分钟 |
-| `deepseek-v4-pro[1m]`, debug/agentic/complex/long-context | 约 10 分钟 |
-| `deepseek-v4-pro[1m]`, `docs_generation` | 5-10 分钟 |
+- DeepSeek V4 Pro 在复杂代码任务里单段思考约 10 分钟是合理的。
 
 `deepseek_wait_for_job` 只是短前台观察。它不会杀 worker；没完成就返回 `running`。`max_wait_elapsed` / `foreground_wait_cap_elapsed` 只表示这次观察窗口结束，不表示应该取消。
 

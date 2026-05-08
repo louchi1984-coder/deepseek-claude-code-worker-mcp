@@ -56,8 +56,8 @@ coding worker:
   liveness, idle time, changed files so far, and recommended poll timing by
   default. Logs, stream events, and unified diffs are opt-in so Codex does not
   spend tokens reading evidence before terminal review.
-- **DeepSeek thinking expectations**: the README tells calling agents that long
-  continuous thinking segments can be normal, especially for `deepseek-v4-pro[1m]`.
+- **DeepSeek thinking expectation**: DeepSeek V4 Pro thinking for about 10
+  minutes in one continuous segment can be normal on complex coding work.
 - **Permission guardrails**: default workers use MCP-managed Claude Code `dontAsk`
   settings plus a `PreToolUse` hook, while `bypassPermissions` stays disabled.
 - **Scoped patch mode**: callers can provide narrow `allowed_dirs` so a worker is
@@ -77,7 +77,7 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.22
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.23
 ```
 
 Global interactive installs run setup automatically. Setup checks Claude Code,
@@ -88,7 +88,7 @@ manual next step instead of blocking npm.
 To smoke-test the GitHub package without installing globally:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.22 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.23 --doctor
 ```
 
 Configure the MCP client:
@@ -227,8 +227,8 @@ by default. They do not include stdout/stderr tails, recent stream events, or
 per-file diffs unless the caller explicitly passes `include_logs`,
 `include_events`, or `include_diff`. Use `deepseek_wait_for_job` only as a short
 observation window; do not make one long foreground tool call just because
-DeepSeek may think for a long time. Long thinking is normal, and the worker keeps
-running independently of individual `get`, `tail`, or `wait` calls.
+DeepSeek V4 Pro thinking for about 10 minutes in one continuous segment can be
+normal on complex coding work.
 
 Default rules for callers:
 
@@ -245,19 +245,8 @@ Default rules for callers:
 - If you use `deepseek_wait_for_job`, treat it as a short foreground observation
   helper, not the main loop. It keeps the worker alive and returns running status
   when the observation window ends.
-- For `deepseek-v4-pro[1m]`, a single continuous thinking/quiet segment of about
-  10 minutes can be normal on complex coding work. This is not a cumulative job
-  time budget. Never cancel, restart, or take over a running worker solely
-  because one thinking segment has lasted several minutes.
-- Thinking expectations are per continuous segment, not cumulative job runtime:
-
-  | Model / use case | Normal single thinking or quiet segment |
-  | --- | --- |
-  | `deepseek-v4-flash`, `fast_patch` | 1-3 minutes |
-  | `deepseek-v4-flash`, ordinary implementation | 3-5 minutes |
-  | `deepseek-v4-pro[1m]`, debug/agentic/complex/long-context | about 10 minutes |
-  | `deepseek-v4-pro[1m]`, `docs_generation` | 5-10 minutes |
-
+- DeepSeek V4 Pro thinking for about 10 minutes in one continuous segment can be
+  normal on complex coding work.
 - While the worker is `running`, only observe status/activity. Do not analyze
   `file_diffs`, `policy`, or `checks_run` until the job is `completed`, `failed`,
   `cancel_requested`, or `orphaned`.
