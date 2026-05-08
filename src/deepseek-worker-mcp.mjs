@@ -445,7 +445,8 @@ async function installClaudeCode() {
   }
 
   process.stdout.write("Installing Claude Code with npm install -g @anthropic-ai/claude-code ...\n");
-  const child = spawn(npmBin, ["install", "-g", "@anthropic-ai/claude-code"], {
+  const npmInvocation = npmInstallInvocation(npmBin);
+  const child = spawn(npmInvocation.command, npmInvocation.args, {
     stdio: "inherit",
     env: process.env,
   });
@@ -463,6 +464,16 @@ async function installClaudeCode() {
     return false;
   }
   return true;
+}
+
+function npmInstallInvocation(npmBin) {
+  if (platform() === "win32") {
+    return {
+      command: process.env.ComSpec || "cmd.exe",
+      args: ["/d", "/s", "/c", "npm install -g @anthropic-ai/claude-code"],
+    };
+  }
+  return { command: npmBin, args: ["install", "-g", "@anthropic-ai/claude-code"] };
 }
 
 async function callTool(params) {
@@ -1023,7 +1034,7 @@ function buildClaudeSettings(args, cwd) {
           hooks: [
             {
               type: "command",
-              command: `node ${JSON.stringify(SELF_SCRIPT)} --permission-hook`,
+              command: `${JSON.stringify(process.execPath)} ${JSON.stringify(SELF_SCRIPT)} --permission-hook`,
             },
           ],
         },
@@ -1218,16 +1229,28 @@ async function runClaudeDeepSeek({ cwd, prompt, timeout_ms, claude_deepseek_bin,
       worker_profile: job?.worker_profile ?? null,
     });
   }
-  return runProcess(resolvedClaudeDeepSeekBin, invocation.args, {
+  const processInvocation = nodeScriptInvocation(resolvedClaudeDeepSeekBin, invocation.args);
+  return runProcess(processInvocation.command, processInvocation.args, {
     cwd,
     timeout_ms,
     job,
     stream_name: "worker",
-    invocation_preview: previewClaudeArgs(invocation.args, prompt),
+    invocation_preview: previewClaudeArgs(processInvocation.previewArgs, prompt),
     parse_stream_json: output_format === "stream-json",
     output_format,
     env: extraEnv,
   });
+}
+
+function nodeScriptInvocation(command, args) {
+  if (/\.(mjs|cjs|js)$/i.test(command)) {
+    return {
+      command: process.execPath,
+      args: [command, ...args],
+      previewArgs: [command, ...args],
+    };
+  }
+  return { command, args, previewArgs: args };
 }
 
 function buildClaudeDeepSeekInvocation({ prompt, permission_mode, model, output_format, claude_settings = null }) {

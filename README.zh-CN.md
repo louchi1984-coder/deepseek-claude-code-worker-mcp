@@ -40,7 +40,7 @@ MCP 宿主
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.13
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.14
 ```
 
 全局交互安装会自动运行 setup。setup 会检查 Claude Code，缺失时询问是否安装；如果没有 DeepSeek key，会提示输入并保存；最后打印 MCP 配置。非交互安装不会卡住 npm，只会打印手动下一步。
@@ -48,7 +48,7 @@ npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.13
 不想全局安装时，可以先用 npx 验证 GitHub 包能否拉起：
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.13 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.14 --doctor
 ```
 
 MCP 配置：
@@ -114,7 +114,7 @@ https://github.com/louchi1984-coder/deepseek-claude-code-worker-mcp
 - Node.js 20+
 - 平台支持
   - macOS 和 Linux 是主要测试目标
-  - Windows 是 best-effort 支持：只要 `claude` / `claude.cmd` 在 `PATH` 中可用就会尝试运行，但还需要更多真实 Windows 机器验证
+  - Windows 是 best-effort 支持：只要 `node`、`npm`、`claude` / `claude.cmd` 在 `PATH` 中可用就会尝试运行，但还需要更多真实 Windows 机器验证
 - Claude Code CLI
   - setup 发现没有 `claude` 时，会询问是否运行 `npm install -g @anthropic-ai/claude-code`
   - 或者使用 `PATH` 里的现有 `claude`

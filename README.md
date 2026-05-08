@@ -65,7 +65,7 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.13
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.14
 ```
 
 Global interactive installs run setup automatically. Setup checks Claude Code,
@@ -76,7 +76,7 @@ manual next step instead of blocking npm.
 To smoke-test the GitHub package without installing globally:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.13 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.14 --doctor
 ```
 
 Configure the MCP client:
@@ -140,8 +140,9 @@ Requirements:
 - Node.js 20+
 - Platform support
   - macOS and Linux are the primary tested targets
-  - Windows is supported on a best-effort basis when `claude` / `claude.cmd` is
-    available on `PATH`, but still needs broader real-machine testing
+  - Windows is supported on a best-effort basis when `node`, `npm`, and
+    `claude` / `claude.cmd` are available on `PATH`, but still needs broader
+    real-machine testing
 - A working Claude Code CLI executable
   - setup can install it with confirmation if `claude` is missing
   - or use an existing `claude` available on `PATH`
