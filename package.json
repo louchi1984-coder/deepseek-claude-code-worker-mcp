@@ -36,6 +36,7 @@
     "README.zh-CN.md"
   ],
   "scripts": {
+    "postinstall": "node bin/deepseek-code-worker-postinstall.mjs",
     "mcp:deepseek-worker": "node src/deepseek-worker-mcp.mjs",
     "mcp:doctor": "node src/deepseek-worker-mcp.mjs --doctor",
     "mcp:setup": "node src/deepseek-worker-mcp.mjs --setup",

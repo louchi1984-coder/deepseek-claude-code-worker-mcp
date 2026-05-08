@@ -60,15 +60,18 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.9
-deepseek-code-worker-setup
-deepseek-code-worker-mcp --doctor
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.10
 ```
+
+Global interactive installs run setup automatically. Setup checks Claude Code,
+can install it with user confirmation, prompts for the DeepSeek key if needed,
+and prints the MCP config. In non-interactive installs, the package prints the
+manual next step instead of blocking npm.
 
 To smoke-test the GitHub package without installing globally:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.9 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.10 --doctor
 ```
 
 Configure the MCP client:
@@ -108,8 +111,6 @@ When npm publishing is available, the install command becomes:
 
 ```bash
 npm i -g deepseek-worker-mcp
-deepseek-code-worker-setup
-deepseek-code-worker-mcp --doctor
 ```
 
 ## Requirements
