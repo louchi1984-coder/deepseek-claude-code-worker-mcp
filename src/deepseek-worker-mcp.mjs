@@ -29,7 +29,6 @@ import {
   DEFAULT_REASONING_EFFORT,
   DEFAULT_SYNC_TIMEOUT_MS,
   JOB_ROOT,
-  MAX_RECOMMENDED_POLL_AFTER_MS,
   MAX_DIFF_CONTENT_BYTES,
   MAX_DIFF_LINES,
   MAX_FILE_BYTES,
@@ -134,11 +133,11 @@ const tools = [
         max_wait_ms: {
           type: "number",
           description:
-            "Caller-requested observation window. The MCP caps each foreground wait below common host tool-call limits and leaves the worker running.",
+            "Caller-requested observation window. This is only a foreground observation helper; it does not control worker lifetime.",
         },
         poll_interval_ms: {
           type: "number",
-          description: "Polling interval while observing. Defaults to the job's recommended poll interval, capped for responsiveness.",
+          description: "Polling interval while observing. Defaults to the job's recommended poll interval.",
         },
         quiet_with_changes_ms: {
           type: "number",
@@ -925,10 +924,7 @@ function normalizeArgs(args, options = {}) {
     args.timeout_ms,
     options.sync ? DEFAULT_SYNC_TIMEOUT_MS : null
   );
-  const poll_after_ms = Math.min(
-    Number(args.poll_after_ms ?? preset.poll_after_ms ?? DEFAULT_POLL_AFTER_MS),
-    MAX_RECOMMENDED_POLL_AFTER_MS
-  );
+  const poll_after_ms = Number(args.poll_after_ms ?? preset.poll_after_ms ?? DEFAULT_POLL_AFTER_MS);
   const idle_after_ms = Number(args.idle_after_ms ?? preset.idle_after_ms ?? DEFAULT_IDLE_AFTER_MS);
   const allowed_dirs = arrayOfStrings(args.allowed_dirs);
   const forbidden_paths = arrayOfStrings(args.forbidden_paths).length > 0
@@ -1770,10 +1766,7 @@ function progressForJob(job) {
 }
 
 function recommendedPollAfterMs(job) {
-  return Math.min(
-    Number(job?.recommended_poll_after_ms ?? DEFAULT_POLL_AFTER_MS),
-    MAX_RECOMMENDED_POLL_AFTER_MS
-  );
+  return Number(job?.recommended_poll_after_ms ?? DEFAULT_POLL_AFTER_MS);
 }
 
 function nextPollHint(job) {
@@ -2038,7 +2031,7 @@ function implementationSchema() {
       check_timeout_ms: { type: "number", description: "Per-check timeout. Defaults to 10 minutes." },
       poll_after_ms: {
         type: "number",
-        description: "Suggested async polling interval returned to callers. Defaults from use_case and is capped at 60 seconds for running jobs.",
+        description: "Suggested async polling interval returned to callers. Defaults from use_case and can be overridden by the caller.",
       },
       idle_after_ms: {
         type: "number",

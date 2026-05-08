@@ -10,6 +10,18 @@
 
 它不是一个独立的 DeepSeek 客户端。项目内置了一个很小的 `claude-deepseek` 启动器：它会调用本机 Claude Code CLI，并把这次子进程请求切到 DeepSeek 的 Anthropic-compatible endpoint。
 
+## Codex 快速规则
+
+使用这个 MCP 时：
+
+1. 长任务用 `deepseek_start_implementation`。
+2. 不要把 `deepseek_wait_for_job` 当主循环。
+3. `running` 时用 `deepseek_get_job` 轻量轮询。
+4. `next_poll.after_ms` 是状态检查建议，不是超时或 watchdog。
+5. 轮询只是让 Codex 保持关注，不应该取消、重启、接管或审半成品。
+6. 只有终态后才审 `file_diffs`、`policy` 和 `checks_run`。
+7. 目标是省 Codex token：Codex 定边界和审查，DeepSeek 实现。
+
 ```text
 MCP 宿主
   -> deepseek-code-worker MCP
@@ -25,8 +37,8 @@ MCP 宿主
 它不只是“把 Claude Code 指到 DeepSeek”的薄包装。为了让 Codex 真正能把 DeepSeek 当后台代码 worker 使用，这个 MCP 补了运行时能力：
 
 - **异步 worker job**：启动任务后返回 `job_id`，worker 不依赖单次前台工具调用存活。
-- **60 秒内 heartbeat**：`deepseek_wait_for_job` 只短暂观察；没完成就返回 `running`，避免撞上宿主前台工具调用超时。
-- **60 秒 keep-alive 轮询提示**：running job 返回 `next_poll`，建议轮询时间最多 60 秒，方便宿主定期看一眼而不是长时间卡住。
+- **短 heartbeat helper**：`deepseek_wait_for_job` 可以短暂观察 job，但正常主循环应该用 `deepseek_get_job`。
+- **宿主轮询提示**：running job 返回 `next_poll`，让 Codex 保持等待状态，同时不干预 worker。
 - **结构化状态**：`get_job` / `tail_job` 返回 phase、进程存活、idle 时间、最近 stream 事件、已变更文件、stdout/stderr tail、建议轮询时间。
 - **DeepSeek 思考时间预期**：文档明确告诉调用方，连续 thinking/quiet 几分钟甚至 Pro 约 10 分钟可以是正常现象。
 - **权限护栏**：默认 worker 使用 MCP 生成的 Claude Code `dontAsk` settings，并通过 `PreToolUse` hook 控制危险 Bash、禁用路径和越界写入；`bypassPermissions` 默认禁用。
@@ -41,7 +53,7 @@ MCP 宿主
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.17
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.18
 ```
 
 全局交互安装会自动运行 setup。setup 会检查 Claude Code，缺失时询问是否安装；如果没有 DeepSeek key，会提示输入并保存；最后打印 MCP 配置。非交互安装不会卡住 npm，只会打印手动下一步。
@@ -49,7 +61,7 @@ npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.17
 不想全局安装时，可以先用 npx 验证 GitHub 包能否拉起：
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.17 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.18 --doctor
 ```
 
 MCP 配置：
@@ -171,7 +183,7 @@ MCP JSON-RPC 正常运行时不会弹交互，也不会在协议里询问 key。
 - 目标是省 Codex 主线程 token，不是省 DeepSeek token
 - Codex 主线程决定任务边界
 - DeepSeek worker 单线程完成一个明确实现任务
-- Codex 按 `next_poll.after_ms` 每隔约 60 秒看一次状态，优先用 `deepseek_get_job`
+- Codex 按 `next_poll.after_ms` 轻量看状态，优先用 `deepseek_get_job`
 - worker 还是 `running` 时只观察状态和活动，不审查 diff
 - worker 到达 `completed` / `failed` / `cancel_requested` / `orphaned` 后，再审 `file_diffs`、`policy`、`checks_run`
 - quiet/静默只是状态事实，不是取消、接管或审查半成品的依据。只要进程还活着，就继续轮询，除非用户明确要求停止，或者 job 进入终态。

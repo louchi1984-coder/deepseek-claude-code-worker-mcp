@@ -19,6 +19,19 @@ This is not a standalone DeepSeek client. It includes a small `claude-deepseek`
 launcher that runs the local Claude Code CLI against DeepSeek's
 Anthropic-compatible endpoint.
 
+## Agent Quick Rules
+
+When using this MCP:
+
+1. Start long tasks with `deepseek_start_implementation`.
+2. Do not use `deepseek_wait_for_job` as the main loop.
+3. While status is `running`, poll lightly with `deepseek_get_job`.
+4. `next_poll.after_ms` is a status-check hint, not a timeout or watchdog.
+5. Polling keeps Codex aware of the worker; it must not cancel, restart, take
+   over, or review partial artifacts.
+6. Review `file_diffs`, `policy`, and `checks_run` only after terminal status.
+7. The goal is to save Codex tokens: Codex plans/reviews, DeepSeek implements.
+
 It exposes a DeepSeek V4 coding worker backed by Claude Code:
 
 ```text
@@ -39,10 +52,10 @@ coding worker:
 
 - **Async worker jobs**: start a task, get a `job_id`, and keep the worker running
   independently of a single foreground tool call.
-- **Passive sub-60s heartbeat**: `deepseek_wait_for_job` observes briefly and returns
-  `running` if the worker is still active, avoiding host-side foreground timeouts.
-- **60s keep-alive poll hint**: running job responses include `next_poll`, and recommended
-  polling is capped at 60 seconds so hosts can check status without long waits.
+- **Short heartbeat helper**: `deepseek_wait_for_job` can briefly observe a job,
+  but the normal loop should use `deepseek_get_job`.
+- **Host keep-alive poll hint**: running job responses include `next_poll` so
+  Codex can keep waiting without interfering with the worker.
 - **Structured status**: `get_job` / `tail_job` return phase, process liveness,
   idle time, recent stream events, changed files so far, stdout/stderr tails, and
   recommended poll timing.
@@ -67,7 +80,7 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.17
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.18
 ```
 
 Global interactive installs run setup automatically. Setup checks Claude Code,
@@ -78,7 +91,7 @@ manual next step instead of blocking npm.
 To smoke-test the GitHub package without installing globally:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.17 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.18 --doctor
 ```
 
 Configure the MCP client:
@@ -228,11 +241,11 @@ Default rules for callers:
   asks for nested worker delegation.
 - Prefer `deepseek_start_implementation` for standard tasks.
 - After start, prefer `deepseek_get_job` or `deepseek_tail_job` for status.
-- Treat `next_poll.after_ms` as the normal observation cadence. Poll once around
-  that time with `deepseek_get_job`; do not sit in one long foreground wait.
+- Treat `next_poll.after_ms` as a normal status-check cadence. Poll once around
+  that time with `deepseek_get_job`; do not treat it as a liveness timeout.
 - If you use `deepseek_wait_for_job`, treat it as a short foreground observation
-  helper. The MCP caps a single wait below common host tool-call limits and keeps
-  the worker alive.
+  helper, not the main loop. It keeps the worker alive and returns running status
+  when the observation window ends.
 - For `deepseek-v4-pro[1m]`, a single continuous thinking/quiet segment of about
   10 minutes can be normal on complex coding work. This is not a cumulative job
   time budget. Never cancel, restart, or take over a running worker solely
@@ -445,7 +458,7 @@ model is definitely thinking:
   These are status facts only, not cancellation or review thresholds.
 - `last_output_at`: latest worker log timestamp, if any
 - `recommended_poll_after_ms` and `next_poll`: suggested time and preferred tool
-  for the next status check, capped at 60 seconds for running jobs
+  for the next status check. This is a host keep-alive hint, not a watchdog.
 
 For example, `observed_state: "alive_quiet_no_recent_output"` means only that the
 process is still alive and quiet. It is not proof that DeepSeek is thinking, and it
@@ -517,12 +530,11 @@ While a job is running, `deepseek_get_job` and `deepseek_tail_job` report:
 
 For status polling, prefer `deepseek_get_job` or `deepseek_tail_job`; both return
 immediately. `deepseek_wait_for_job` is only a bounded observation helper. It
-loops inside the MCP server for a short foreground window below the Codex MCP
-default tool timeout. If the worker completes or fails during that window, it returns the
-terminal status. Otherwise it returns `status: "running"` with recent activity,
-changed files so far, and `reason: "foreground_wait_cap_elapsed"` or
-`reason: "max_wait_elapsed"`. It never cancels the worker by itself, and elapsed
-observation time is not a recommendation to cancel.
+loops inside the MCP server for the requested observation window. If the worker
+completes or fails during that window, it returns the terminal status. Otherwise
+it returns `status: "running"` with recent activity and changed files so far. It
+never cancels the worker by itself, and elapsed observation time is not a
+recommendation to cancel.
 
 Running status is only a heartbeat. Do not review diffs, policy, or checks while
 the worker is still running unless the user explicitly asks for partial review.
