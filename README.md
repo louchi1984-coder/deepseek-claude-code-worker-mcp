@@ -25,12 +25,10 @@ When using this MCP:
 
 1. Start long tasks with `deepseek_start_implementation`.
 2. Do not use `deepseek_wait_for_job` as the main loop.
-3. While status is `running`, poll lightly with `deepseek_get_job`.
-4. `next_poll.after_ms` is a status-check hint, not a timeout or watchdog.
-5. Polling keeps Codex aware of the worker; it must not cancel, restart, take
-   over, or review partial artifacts.
-6. Review `file_diffs`, `policy`, and `checks_run` only after terminal status.
-7. The goal is to save Codex tokens: Codex plans/reviews, DeepSeek implements.
+3. While status is `running`, use `deepseek_get_job` for compact status.
+4. Do not request logs/events/diffs while the job is still `running`.
+5. Review `file_diffs`, `policy`, and `checks_run` only after terminal status.
+6. The goal is to save Codex tokens: Codex plans/reviews, DeepSeek implements.
 
 It exposes a DeepSeek V4 coding worker backed by Claude Code:
 
@@ -52,10 +50,8 @@ coding worker:
 
 - **Async worker jobs**: start a task, get a `job_id`, and keep the worker running
   independently of a single foreground tool call.
-- **Short heartbeat helper**: `deepseek_wait_for_job` can briefly observe a job,
-  but the normal loop should use `deepseek_get_job`.
-- **Host keep-alive poll hint**: running job responses include `next_poll` so
-  Codex can keep waiting without interfering with the worker.
+- **Status helpers**: `deepseek_get_job` reads compact status;
+  `deepseek_wait_for_job` is only a short observation helper, not the main loop.
 - **Compact structured status**: `get_job` / `tail_job` return phase, process
   liveness, idle time, changed files so far, and recommended poll timing by
   default. Logs, stream events, and unified diffs are opt-in so Codex does not
@@ -81,7 +77,7 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.21
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.22
 ```
 
 Global interactive installs run setup automatically. Setup checks Claude Code,
@@ -92,7 +88,7 @@ manual next step instead of blocking npm.
 To smoke-test the GitHub package without installing globally:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.21 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.22 --doctor
 ```
 
 Configure the MCP client:
@@ -243,11 +239,9 @@ Default rules for callers:
 - The worker should not spawn subagents or use `Task` unless the user explicitly
   asks for nested worker delegation.
 - Prefer `deepseek_start_implementation` for standard tasks.
-- After start, prefer `deepseek_get_job` or `deepseek_tail_job` for status.
+- After start, prefer `deepseek_get_job` for compact status.
 - Keep status polling compact. Do not request logs/events/diffs until terminal
   review or explicit debugging.
-- Treat `next_poll.after_ms` as a normal status-check cadence. Poll once around
-  that time with `deepseek_get_job`; do not treat it as a liveness timeout.
 - If you use `deepseek_wait_for_job`, treat it as a short foreground observation
   helper, not the main loop. It keeps the worker alive and returns running status
   when the observation window ends.
@@ -267,9 +261,7 @@ Default rules for callers:
 - While the worker is `running`, only observe status/activity. Do not analyze
   `file_diffs`, `policy`, or `checks_run` until the job is `completed`, `failed`,
   `cancel_requested`, or `orphaned`.
-- Quiet time is never a cancellation, takeover, or partial-review signal. If the
-  process is still alive, keep polling unless the user explicitly asks to stop or
-  the job reaches a terminal status.
+- Quiet time is never a cancellation, takeover, or partial-review signal.
 - Use `deepseek_implement_in_workspace` only for tiny, quick edits.
 - Standard implementation uses MCP-managed `dontAsk` permissions with a
   `PreToolUse` hook, so callers should not need to approve normal Read/Edit
@@ -353,11 +345,11 @@ override it.
 
 - `deepseek_implement_in_workspace`: synchronous execution. Can run for a long time.
 - `deepseek_start_implementation`: starts a background job and returns `job_id`.
-- `deepseek_get_job`: polls an async job, including progress.
-- `deepseek_tail_job`: returns only progress and log tails for a running job.
-- `deepseek_wait_for_job`: observes a job for a short foreground heartbeat
-  window. It returns completion/failure if done; otherwise it returns `running`
-  and leaves the worker alive.
+- `deepseek_get_job`: reads compact async job status and progress.
+- `deepseek_tail_job`: reads status plus opt-in log/event tails.
+- `deepseek_wait_for_job`: observes a job for a short foreground window. It
+  returns completion/failure if done; otherwise it returns `running` and leaves
+  the worker alive.
 - `deepseek_cancel_job`: requests cancellation for a running job.
 
 ## DeepSeek V4 Use Cases
@@ -462,8 +454,8 @@ model is definitely thinking:
 - `idle_seconds` and `quiet`: how long the worker has produced no stdout/stderr.
   These are status facts only, not cancellation or review thresholds.
 - `last_output_at`: latest worker log timestamp, if any
-- `recommended_poll_after_ms` and `next_poll`: suggested time and preferred tool
-  for the next status check. This is a host keep-alive hint, not a watchdog.
+- `recommended_poll_after_ms` and `next_poll`: optional status-check hint. This
+  is not a timeout, watchdog, or instruction to keep polling indefinitely.
 
 For example, `observed_state: "alive_quiet_no_recent_output"` means only that the
 process is still alive and quiet. It is not proof that DeepSeek is thinking, and it
@@ -537,18 +529,17 @@ Large evidence is opt-in:
 - pass `include_diff: true` on `get_job` / `wait_for_job` when terminal review
   needs per-file unified diffs
 
-For status polling, prefer `deepseek_get_job` or `deepseek_tail_job`; both return
-immediately. `deepseek_wait_for_job` is only a bounded observation helper. It
+For status checks, prefer `deepseek_get_job`; it returns immediately.
+`deepseek_wait_for_job` is only a bounded observation helper. It
 loops inside the MCP server for the requested observation window. If the worker
 completes or fails during that window, it returns the terminal status. Otherwise
 it returns `status: "running"` with compact activity and changed files so far. It
 never cancels the worker by itself, and elapsed observation time is not a
 recommendation to cancel.
 
-Running status is only a heartbeat. Do not review diffs, policy, or checks while
-the worker is still running unless the user explicitly asks for partial review.
-Wait for a terminal status first, then inspect `file_diffs`, `policy`, and
-`checks_run`.
+Do not review diffs, policy, or checks while the worker is still running unless
+the user explicitly asks for partial review. Wait for a terminal status first,
+then inspect `file_diffs`, `policy`, and `checks_run`.
 
 The MCP server is expected to stay alive while the host keeps its stdio transport
 open. When the host closes stdin or sends `SIGTERM` / `SIGINT`, the server shuts
@@ -640,7 +631,7 @@ and partial JSON line handling.
 - README now starts with a publish-ready quick start for cloned repos and future
   npm installs.
 - Removed placeholder package repository metadata.
-- Updated tool descriptions to match passive heartbeat behavior.
+- Updated tool descriptions to match passive running-job observation behavior.
 
 ### 0.3.18
 
@@ -651,8 +642,8 @@ and partial JSON line handling.
 ### 0.3.17
 
 - `deepseek_wait_for_job` is now passive while jobs are running. It reports
-  completion/failure or a running heartbeat; it no longer marks quiet running jobs
-  as `needs_review`.
+  completion/failure or running status; it no longer marks quiet running jobs as
+  `needs_review`.
 - README now tells calling agents to review diffs/checks only after terminal job
   status.
 
