@@ -41,6 +41,8 @@ coding worker:
   independently of a single foreground tool call.
 - **Passive 90s heartbeat**: `deepseek_wait_for_job` observes briefly and returns
   `running` if the worker is still active, avoiding host-side foreground timeouts.
+- **90s poll hint**: running job responses include `next_poll`, and recommended
+  polling is capped at 90 seconds so hosts can check status without long waits.
 - **Structured status**: `get_job` / `tail_job` return phase, process liveness,
   idle time, recent stream events, changed files so far, stdout/stderr tails, and
   recommended poll timing.
@@ -65,7 +67,7 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.15
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.16
 ```
 
 Global interactive installs run setup automatically. Setup checks Claude Code,
@@ -76,7 +78,7 @@ manual next step instead of blocking npm.
 To smoke-test the GitHub package without installing globally:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.15 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.16 --doctor
 ```
 
 Configure the MCP client:
@@ -226,6 +228,8 @@ Default rules for callers:
   asks for nested worker delegation.
 - Prefer `deepseek_start_implementation` for standard tasks.
 - After start, prefer `deepseek_get_job` or `deepseek_tail_job` for status.
+- Treat `next_poll.after_ms` as the normal observation cadence. Poll once around
+  that time with `deepseek_get_job`; do not sit in one long foreground wait.
 - If you use `deepseek_wait_for_job`, treat it as a short foreground observation
   helper. The MCP caps a single wait below common host tool-call limits and keeps
   the worker alive.
@@ -440,7 +444,8 @@ model is definitely thinking:
 - `idle_seconds` and `quiet`: how long the worker has produced no stdout/stderr.
   These are status facts only, not cancellation or review thresholds.
 - `last_output_at`: latest worker log timestamp, if any
-- `recommended_poll_after_ms`: suggested time before polling again
+- `recommended_poll_after_ms` and `next_poll`: suggested time and preferred tool
+  for the next status check, capped at 90 seconds for running jobs
 
 For example, `observed_state: "alive_quiet_no_recent_output"` means only that the
 process is still alive and quiet. It is not proof that DeepSeek is thinking, and it

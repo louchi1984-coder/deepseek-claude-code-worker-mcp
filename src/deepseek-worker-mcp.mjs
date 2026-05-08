@@ -29,6 +29,7 @@ import {
   DEFAULT_REASONING_EFFORT,
   DEFAULT_SYNC_TIMEOUT_MS,
   JOB_ROOT,
+  MAX_RECOMMENDED_POLL_AFTER_MS,
   MAX_DIFF_CONTENT_BYTES,
   MAX_DIFF_LINES,
   MAX_FILE_BYTES,
@@ -524,7 +525,8 @@ async function callTool(params) {
         recent_events: job.stream_events ?? [],
       },
       job_dir: job.job_dir,
-      recommended_poll_after_ms: job.recommended_poll_after_ms ?? DEFAULT_POLL_AFTER_MS,
+      recommended_poll_after_ms: recommendedPollAfterMs(job),
+      next_poll: nextPollHint(job),
     });
   }
 
@@ -778,7 +780,8 @@ function startedJobResult(job, prepared) {
     phase_message: job.phase_message,
     output_format: job.output_format,
     claude_args_preview: job.claude_args_preview,
-    recommended_poll_after_ms: prepared.args.poll_after_ms,
+    recommended_poll_after_ms: recommendedPollAfterMs(job),
+    next_poll: nextPollHint(job),
   };
 }
 
@@ -922,7 +925,10 @@ function normalizeArgs(args, options = {}) {
     args.timeout_ms,
     options.sync ? DEFAULT_SYNC_TIMEOUT_MS : null
   );
-  const poll_after_ms = Number(args.poll_after_ms ?? preset.poll_after_ms ?? DEFAULT_POLL_AFTER_MS);
+  const poll_after_ms = Math.min(
+    Number(args.poll_after_ms ?? preset.poll_after_ms ?? DEFAULT_POLL_AFTER_MS),
+    MAX_RECOMMENDED_POLL_AFTER_MS
+  );
   const idle_after_ms = Number(args.idle_after_ms ?? preset.idle_after_ms ?? DEFAULT_IDLE_AFTER_MS);
   const allowed_dirs = arrayOfStrings(args.allowed_dirs);
   const forbidden_paths = arrayOfStrings(args.forbidden_paths).length > 0
@@ -1552,7 +1558,8 @@ function serializeJob(job) {
     preset_requires_review: job.preset_requires_review,
     permission_mode: job.permission_mode,
     restored_from_disk: Boolean(job.restored_from_disk),
-    recommended_poll_after_ms: job.recommended_poll_after_ms ?? DEFAULT_POLL_AFTER_MS,
+    recommended_poll_after_ms: recommendedPollAfterMs(job),
+    next_poll: nextPollHint(job),
     progress: progressForJob(job),
       worker: {
         stdout_tail: tail(job.stdout ?? ""),
@@ -1762,6 +1769,29 @@ function progressForJob(job) {
   };
 }
 
+function recommendedPollAfterMs(job) {
+  return Math.min(
+    Number(job?.recommended_poll_after_ms ?? DEFAULT_POLL_AFTER_MS),
+    MAX_RECOMMENDED_POLL_AFTER_MS
+  );
+}
+
+function nextPollHint(job) {
+  if (!job || job.status !== "running") {
+    return {
+      after_ms: null,
+      preferred_tool: "deepseek_get_job",
+      instruction: "Job is not running; inspect terminal result instead of polling.",
+    };
+  }
+  return {
+    after_ms: recommendedPollAfterMs(job),
+    preferred_tool: "deepseek_get_job",
+    alternate_tool: "deepseek_tail_job",
+    instruction: "Poll once after this interval. Do not block the foreground conversation with a long wait; use get_job or tail_job to observe status.",
+  };
+}
+
 function lastChangeAt(cwd, changedFiles) {
   let latest = 0;
   for (const file of changedFiles) {
@@ -1920,7 +1950,8 @@ function writeJobStatus(job) {
     verification_profile: job.verification_profile,
     permission_mode: job.permission_mode,
     claude_settings_active: job.claude_settings_active,
-    recommended_poll_after_ms: job.recommended_poll_after_ms ?? DEFAULT_POLL_AFTER_MS,
+    recommended_poll_after_ms: recommendedPollAfterMs(job),
+    next_poll: nextPollHint(job),
     phase: job.phase,
     phase_message: job.phase_message,
     observed_state: observedState(job, idle, []),
@@ -2007,7 +2038,7 @@ function implementationSchema() {
       check_timeout_ms: { type: "number", description: "Per-check timeout. Defaults to 10 minutes." },
       poll_after_ms: {
         type: "number",
-        description: "Suggested async polling interval returned to callers. Defaults from use_case; Pro/max presets default to 2 minutes.",
+        description: "Suggested async polling interval returned to callers. Defaults from use_case and is capped at 90 seconds for running jobs.",
       },
       idle_after_ms: {
         type: "number",

@@ -26,6 +26,7 @@ MCP 宿主
 
 - **异步 worker job**：启动任务后返回 `job_id`，worker 不依赖单次前台工具调用存活。
 - **90 秒 heartbeat**：`deepseek_wait_for_job` 只短暂观察；没完成就返回 `running`，避免撞上宿主前台工具调用超时。
+- **90 秒轮询提示**：running job 返回 `next_poll`，建议轮询时间最多 90 秒，方便宿主定期看一眼而不是长时间卡住。
 - **结构化状态**：`get_job` / `tail_job` 返回 phase、进程存活、idle 时间、最近 stream 事件、已变更文件、stdout/stderr tail、建议轮询时间。
 - **DeepSeek 思考时间预期**：文档明确告诉调用方，连续 thinking/quiet 几分钟甚至 Pro 约 10 分钟可以是正常现象。
 - **权限护栏**：默认 worker 使用 MCP 生成的 Claude Code `dontAsk` settings，并通过 `PreToolUse` hook 控制危险 Bash、禁用路径和越界写入；`bypassPermissions` 默认禁用。
@@ -40,7 +41,7 @@ MCP 宿主
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.15
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.16
 ```
 
 全局交互安装会自动运行 setup。setup 会检查 Claude Code，缺失时询问是否安装；如果没有 DeepSeek key，会提示输入并保存；最后打印 MCP 配置。非交互安装不会卡住 npm，只会打印手动下一步。
@@ -48,7 +49,7 @@ npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.15
 不想全局安装时，可以先用 npx 验证 GitHub 包能否拉起：
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.15 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.16 --doctor
 ```
 
 MCP 配置：
@@ -170,7 +171,7 @@ MCP JSON-RPC 正常运行时不会弹交互，也不会在协议里询问 key。
 - 目标是省 Codex 主线程 token，不是省 DeepSeek token
 - Codex 主线程决定任务边界
 - DeepSeek worker 单线程完成一个明确实现任务
-- Codex 每隔约 90 秒看一次状态
+- Codex 按 `next_poll.after_ms` 每隔约 90 秒看一次状态，优先用 `deepseek_get_job`
 - worker 还是 `running` 时只观察状态和活动，不审查 diff
 - worker 到达 `completed` / `failed` / `cancel_requested` / `orphaned` 后，再审 `file_diffs`、`policy`、`checks_run`
 - quiet/静默只是状态事实，不是取消、接管或审查半成品的依据。只要进程还活着，就继续轮询，除非用户明确要求停止，或者 job 进入终态。
