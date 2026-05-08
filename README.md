@@ -77,7 +77,7 @@ coding worker:
 Install directly from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.23
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.24
 ```
 
 Global interactive installs run setup automatically. Setup checks Claude Code,
@@ -88,7 +88,7 @@ manual next step instead of blocking npm.
 To smoke-test the GitHub package without installing globally:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.23 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.24 --doctor
 ```
 
 Configure the MCP client:
@@ -245,8 +245,15 @@ Default rules for callers:
 - If you use `deepseek_wait_for_job`, treat it as a short foreground observation
   helper, not the main loop. It keeps the worker alive and returns running status
   when the observation window ends.
-- DeepSeek V4 Pro thinking for about 10 minutes in one continuous segment can be
-  normal on complex coding work.
+- Thinking expectations are per continuous segment, not cumulative job runtime:
+
+  | Model / use case | Normal single thinking or quiet segment |
+  | --- | --- |
+  | `deepseek-v4-flash`, `fast_patch` | 1-3 minutes |
+  | `deepseek-v4-flash`, ordinary implementation | 3-5 minutes |
+  | `deepseek-v4-pro[1m]`, debug/agentic/complex/long-context | about 10 minutes |
+  | `deepseek-v4-pro[1m]`, `docs_generation` | 5-10 minutes |
+
 - While the worker is `running`, only observe status/activity. Do not analyze
   `file_diffs`, `policy`, or `checks_run` until the job is `completed`, `failed`,
   `cancel_requested`, or `orphaned`.
