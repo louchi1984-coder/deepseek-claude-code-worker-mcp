@@ -20,40 +20,24 @@ This is not a standalone DeepSeek client. It includes a small `claude-deepseek` 
 
 ## Quick Start
 
-Install from GitHub:
+This project is not published to the npm registry yet. Use one of these two paths.
 
-```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.32
-```
-
-Check the environment:
-
-```bash
-deepseek-code-worker-mcp --doctor
-```
-
-Expected shape:
-
-```json
-{
-  "server_version": "0.3.20-beta.32",
-  "ok": true
-}
-```
-
-MCP config:
+GitHub / no global install:
 
 ```json
 {
   "mcpServers": {
     "deepseek-code-worker": {
-      "command": "deepseek-code-worker-mcp"
+      "command": "npx",
+      "args": [
+        "github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.32"
+      ]
     }
   }
 }
 ```
 
-From source:
+Source mode, recommended for local development:
 
 ```bash
 git clone https://github.com/louchi1984-coder/deepseek-claude-code-worker-mcp.git
@@ -73,6 +57,21 @@ Source-mode MCP config:
       "args": ["/absolute/path/to/deepseek-claude-code-worker-mcp/src/deepseek-worker-mcp.mjs"]
     }
   }
+}
+```
+
+Check a GitHub tag without installing:
+
+```bash
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.32 --doctor
+```
+
+Expected shape:
+
+```json
+{
+  "server_version": "0.3.20-beta.32",
+  "ok": true
 }
 ```
 

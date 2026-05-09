@@ -20,40 +20,24 @@
 
 ## 快速开始
 
-从 GitHub 安装：
+这个项目还没有发布到 npm registry。现在只推荐两种方式。
 
-```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.32
-```
-
-检查环境：
-
-```bash
-deepseek-code-worker-mcp --doctor
-```
-
-看到类似输出即可：
-
-```json
-{
-  "server_version": "0.3.20-beta.32",
-  "ok": true
-}
-```
-
-MCP 配置：
+GitHub / 不做全局安装：
 
 ```json
 {
   "mcpServers": {
     "deepseek-code-worker": {
-      "command": "deepseek-code-worker-mcp"
+      "command": "npx",
+      "args": [
+        "github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.32"
+      ]
     }
   }
 }
 ```
 
-从源码运行：
+源码模式，适合本地开发：
 
 ```bash
 git clone https://github.com/louchi1984-coder/deepseek-claude-code-worker-mcp.git
@@ -73,6 +57,21 @@ npm run mcp:doctor
       "args": ["/absolute/path/to/deepseek-claude-code-worker-mcp/src/deepseek-worker-mcp.mjs"]
     }
   }
+}
+```
+
+检查 GitHub tag，不安装：
+
+```bash
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.32 --doctor
+```
+
+看到类似输出即可：
+
+```json
+{
+  "server_version": "0.3.20-beta.32",
+  "ok": true
 }
 ```
 
