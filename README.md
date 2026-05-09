@@ -30,7 +30,7 @@ GitHub / no global install:
     "deepseek-code-worker": {
       "command": "npx",
       "args": [
-        "github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.34"
+        "github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.35"
       ]
     }
   }
@@ -63,14 +63,14 @@ Source-mode MCP config:
 Check a GitHub tag without installing:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.34 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.35 --doctor
 ```
 
 Expected shape:
 
 ```json
 {
-  "server_version": "0.3.20-beta.34",
+  "server_version": "0.3.20-beta.35",
   "ok": true
 }
 ```
@@ -187,8 +187,10 @@ Explicit `model`, `thinking`, or `reasoning_effort` values override the preset.
 This MCP is not an OS/container sandbox. Its guardrails are:
 
 - temporary Claude Code `dontAsk` settings per worker
-- a `PreToolUse` hook for dangerous Bash, forbidden paths, and out-of-scope writes
+- a `PreToolUse` hook for clearly dangerous Bash, forbidden paths, and out-of-scope writes
 - final workspace snapshot policy checks
+
+Default `safety_mode` is `permissive`: Bash is allowed except clearly dangerous commands. Use `safety_mode: "safe"` to restrict Bash to read-only locator commands and explicit checks.
 
 `bypassPermissions` is disabled by default. Keep it off unless you add a real sandbox outside this MCP.
 

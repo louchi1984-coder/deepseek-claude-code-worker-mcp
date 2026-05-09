@@ -6,7 +6,10 @@ const config = {
   forbidden_paths: ["/tmp/deepseek-worker-permission-smoke/.env"],
   checks: ["node --check src/index.js"],
   worker_profile: "scoped_patch",
+  safety_mode: "safe",
 };
+
+const permissiveConfig = { ...config, safety_mode: "permissive" };
 
 const cases = [
   {
@@ -56,26 +59,49 @@ const cases = [
   },
 ];
 
+const permissiveCases = [
+  {
+    name: "permissive allows ordinary bash",
+    config: permissiveConfig,
+    input: { tool_name: "Bash", tool_input: { command: "cat src/index.js" } },
+    expect: "allow",
+  },
+  {
+    name: "permissive still denies dangerous bash",
+    config: permissiveConfig,
+    input: { tool_name: "Bash", tool_input: { command: "rm -rf src" } },
+    expect: "deny",
+  },
+];
+
 const failures = [];
 for (const item of cases) {
-  const result = await runHook(item.input);
+  const result = await runHook(item.input, item.config ?? config);
   const decision = result.output?.hookSpecificOutput?.permissionDecision ?? null;
   if (decision !== item.expect) {
     failures.push({ name: item.name, expected: item.expect, actual: decision, stderr: result.stderr });
   }
 }
 
-console.log(JSON.stringify({ cases: cases.length, failures }, null, 2));
+for (const item of permissiveCases) {
+  const result = await runHook(item.input, item.config);
+  const decision = result.output?.hookSpecificOutput?.permissionDecision ?? null;
+  if (decision !== item.expect) {
+    failures.push({ name: item.name, expected: item.expect, actual: decision, stderr: result.stderr });
+  }
+}
+
+console.log(JSON.stringify({ cases: cases.length + permissiveCases.length, failures }, null, 2));
 if (failures.length > 0) process.exitCode = 1;
 
-function runHook(input) {
+function runHook(input, hookConfig) {
   return new Promise((resolvePromise) => {
     const child = spawn("node", ["src/deepseek-worker-mcp.mjs", "--permission-hook"], {
       cwd: process.cwd(),
       stdio: ["pipe", "pipe", "pipe"],
       env: {
         ...process.env,
-        DEEPSEEK_WORKER_HOOK_CONFIG: JSON.stringify(config),
+        DEEPSEEK_WORKER_HOOK_CONFIG: JSON.stringify(hookConfig),
       },
     });
     let stdout = "";

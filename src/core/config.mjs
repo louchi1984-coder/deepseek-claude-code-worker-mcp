@@ -2,7 +2,7 @@ import { dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-export const SERVER_VERSION = "0.3.20-beta.34";
+export const SERVER_VERSION = "0.3.20-beta.35";
 export const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const SELF_SCRIPT = resolve(process.argv[1] ?? "deepseek-worker-mcp.mjs");
 export const DEFAULT_CLAUDE_DEEPSEEK = resolve(PACKAGE_ROOT, "bin/claude-deepseek.mjs");
@@ -89,7 +89,7 @@ export const WORKER_PROFILES = {
     permission_mode: "dontAsk",
     requires_allowed_dirs: true,
     prompt:
-      "Worker profile: scoped_patch. Make only the requested narrow patch. Use Read for focused file inspection, safe read-only Bash such as rg/wc/sed -n/git diff for locating context, and Edit/MultiEdit for writes. Do not use Bash to write files.",
+      "Worker profile: scoped_patch. Make only the requested narrow patch. Use Bash when it is the efficient way to inspect, transform, or validate within scope; use Edit/MultiEdit when they are clearer. MCP still checks final changed files against allowed_dirs/forbidden_paths.",
   },
   review: {
     permission_mode: "dontAsk",

@@ -635,6 +635,7 @@ function restoreJob(jobId) {
     preset_requires_review: Boolean(data.preset_requires_review),
     verification_profile: data.verification_profile ?? null,
     permission_mode: data.permission_mode ?? null,
+    safety_mode: data.safety_mode ?? "permissive",
     claude_settings_active: Boolean(data.claude_settings_active),
     phase: orphaned ? "orphaned" : (data.phase ?? data.status ?? "restored"),
     phase_message: orphaned
@@ -705,6 +706,7 @@ function createJob(jobId, jobDir, prepared) {
     preset_requires_review: prepared.args.preset_requires_review,
     verification_profile: prepared.args.verification_profile,
       permission_mode: prepared.args.permission_mode,
+      safety_mode: prepared.args.safety_mode,
       claude_settings_active: Boolean(prepared.claudeSettings),
       phase: "queued",
     phase_message: "Worker job accepted and waiting to start.",
@@ -785,6 +787,7 @@ function startedJobResult(job, prepared) {
     preset_requires_review: job.preset_requires_review,
     verification_profile: job.verification_profile,
     permission_mode: job.permission_mode,
+    safety_mode: job.safety_mode,
     claude_settings_active: Boolean(job.claude_settings_active),
     phase: job.phase,
     phase_message: job.phase_message,
@@ -890,6 +893,7 @@ async function runImplementationPrepared(prepared, job = null) {
     preset_requires_review: args.preset_requires_review,
     verification_profile: args.verification_profile,
     permission_mode: args.permission_mode,
+    safety_mode: args.safety_mode,
     claude_settings_active: Boolean(claudeSettings),
     output_format: args.output_format,
     checks_run: checks,
@@ -946,6 +950,7 @@ function normalizeArgs(args, options = {}) {
     ? arrayOfStrings(args.forbidden_paths)
     : DEFAULT_FORBIDDEN_PATHS;
   const permission_mode = args.permission_mode || profile.permission_mode;
+  const safety_mode = normalizeSafetyMode(args.safety_mode);
 
   if (permission_mode === "bypassPermissions" && worker_profile !== "scoped_patch") {
     throw new Error("permission_mode bypassPermissions requires worker_profile: scoped_patch.");
@@ -973,6 +978,7 @@ function normalizeArgs(args, options = {}) {
     allow_docs_only,
     claude_deepseek_bin: args.claude_deepseek_bin || process.env.CLAUDE_DEEPSEEK_BIN || DEFAULT_CLAUDE_DEEPSEEK,
     permission_mode,
+    safety_mode,
     model,
     thinking,
     reasoning_effort,
@@ -980,6 +986,12 @@ function normalizeArgs(args, options = {}) {
     verification_profile,
     output_format,
   };
+}
+
+function normalizeSafetyMode(value) {
+  if (value == null || value === "") return "permissive";
+  if (value === "permissive" || value === "safe") return value;
+  throw new Error("safety_mode must be permissive or safe");
 }
 
 function buildWorkerPrompt(args, allowedRoots, forbiddenPaths) {
@@ -1019,6 +1031,9 @@ function buildWorkerPrompt(args, allowedRoots, forbiddenPaths) {
 
 function buildClaudeSettings(args, cwd) {
   if (args.permission_mode !== "dontAsk") return null;
+  const bashAllow = args.safety_mode === "safe"
+    ? SAFE_READONLY_BASH_ALLOW_RULES
+    : ["Bash", "Bash(*)"];
   const allow = [
     "Read",
     "Glob",
@@ -1027,7 +1042,7 @@ function buildClaudeSettings(args, cwd) {
     "Write",
     "NotebookRead",
     "NotebookEdit",
-    ...SAFE_READONLY_BASH_ALLOW_RULES,
+    ...bashAllow,
     ...args.checks.map((check) => `Bash(${check})`),
   ];
   const deny = [
@@ -1099,6 +1114,7 @@ function bashPermissionDecision(command, config) {
   if (!normalized) return denyPermission("Empty Bash command blocked by worker policy.");
   if ((config.checks ?? []).includes(normalized)) return allowPermission();
   if (isDangerousCommand(normalized)) return denyPermission(`Bash command blocked by worker policy: ${normalized}`);
+  if (config.safety_mode !== "safe") return allowPermission();
   if (isSafeReadOnlyCommand(normalized)) return allowPermission();
   if (config.worker_profile === "scoped_patch") {
     return denyPermission(`Bash command is not an approved check for scoped_patch: ${normalized}`);
@@ -1262,6 +1278,7 @@ async function runClaudeDeepSeek({ cwd, prompt, timeout_ms, claude_deepseek_bin,
       forbidden_paths: job?.forbiddenPaths ?? [],
       checks: job?.checks ?? [],
       worker_profile: job?.worker_profile ?? null,
+      safety_mode: job?.safety_mode ?? "permissive",
     });
   }
   const processInvocation = nodeScriptInvocation(resolvedClaudeDeepSeekBin, invocation.args);
@@ -2134,6 +2151,7 @@ function writeJobStatus(job) {
     preset_requires_review: job.preset_requires_review,
     verification_profile: job.verification_profile,
     permission_mode: job.permission_mode,
+    safety_mode: job.safety_mode,
     claude_settings_active: job.claude_settings_active,
     recommended_poll_after_ms: recommendedPollAfterMs(job),
     next_poll: nextPollHint(job),
@@ -2266,6 +2284,11 @@ function implementationSchema() {
         type: "string",
         enum: ["acceptEdits", "auto", "default", "dontAsk", "plan"],
         description: "Claude Code permission mode. Defaults from worker_profile. dontAsk uses per-worker allow/deny settings; bypassPermissions is intentionally disabled unless a real sandbox is added.",
+      },
+      safety_mode: {
+        type: "string",
+        enum: ["permissive", "safe"],
+        description: "Bash policy for dontAsk workers. Defaults to permissive: allow Bash except clearly dangerous commands and forbidden paths. Use safe to restrict Bash to read-only locator commands and explicit checks.",
       },
       claude_deepseek_bin: { type: "string", description: "Path to claude-deepseek executable." },
       ignored_dirs: {
