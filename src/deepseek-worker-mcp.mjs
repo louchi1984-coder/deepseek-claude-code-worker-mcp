@@ -2,6 +2,9 @@
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createInterface, emitKeypressEvents } from "node:readline";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
 import {
   accessSync,
   appendFileSync,
@@ -66,7 +69,6 @@ const tools = [
     description:
       "Synchronous pure-execution coding worker for tiny edits only. Runs Claude Code through claude-deepseek in a real workspace, requires real file changes, and returns changed files plus validation status. Prefer deepseek_start_implementation for normal or long tasks. Use for implementation, not advice.",
     annotations: {
-      title: "Run DeepSeek worker synchronously",
       readOnlyHint: false,
       destructiveHint: true,
       idempotentHint: false,
@@ -81,7 +83,6 @@ const tools = [
     description:
       "Start an async DeepSeek V4 coding worker and return a job_id immediately. Best default for standard coding tasks: the host agent defines the task boundary, this worker edits/checks files, and the host reviews terminal diff/policy/checks. While status is running, poll compact status with deepseek_get_job; do not request logs/events/diffs unless debugging. Default auto use_case uses reasoning_effort=max.",
     annotations: {
-      title: "Start DeepSeek worker job",
       readOnlyHint: false,
       destructiveHint: true,
       idempotentHint: false,
@@ -96,7 +97,6 @@ const tools = [
     description:
       "Read compact status/result for a DeepSeek worker job. This is the default polling tool. By default it omits stdout/stderr, stream events, and per-file diffs to save host tokens. While status is running, use returned progress/suggested_action only; review file_diffs, policy, and checks_run after terminal status.",
     annotations: {
-      title: "Read DeepSeek worker status",
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
@@ -121,7 +121,6 @@ const tools = [
     description:
       "Return compact running-job progress and files changed so far. Use for lightweight status views, not full review. Logs/events are opt-in and should stay disabled during normal running-state polling to save host tokens.",
     annotations: {
-      title: "Read DeepSeek worker tail",
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
@@ -145,7 +144,6 @@ const tools = [
     description:
       "Observe a DeepSeek worker job for a short foreground window. Returns completion/failure if done; otherwise returns running compact status. This is not the main polling loop, not a timeout policy, and never cancels or reviews the worker. DeepSeek V4 Pro can spend about 10 minutes in one continuous thinking/quiet segment.",
     annotations: {
-      title: "Observe DeepSeek worker job",
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
@@ -183,7 +181,6 @@ const tools = [
     description:
       "Request cancellation of a running DeepSeek worker job. Use only when the user asks to stop, the task is obsolete, or continuing is clearly unsafe. Do not cancel merely because the job is quiet or still thinking.",
     annotations: {
-      title: "Cancel DeepSeek worker job",
       readOnlyHint: false,
       destructiveHint: true,
       idempotentHint: false,
@@ -215,41 +212,9 @@ if (process.argv.includes("--setup")) {
     process.exit(1);
   });
 } else {
-  installServerLifecycleHandlers();
-  const rl = createInterface({ input: process.stdin });
-  rl.on("close", () => {
-    shutdownServer("stdio_closed", 0);
-  });
-  rl.on("line", async (line) => {
-    if (!line.trim()) return;
-    let message;
-    try {
-      message = JSON.parse(line);
-    } catch (error) {
-      write({
-        jsonrpc: "2.0",
-        id: null,
-        error: { code: -32700, message: `Parse error: ${error.message}` },
-      });
-      return;
-    }
-
-    if (!("id" in message)) return;
-
-    try {
-      const result = await handleRequest(message);
-      write({ jsonrpc: "2.0", id: message.id, result });
-    } catch (error) {
-      write({
-        jsonrpc: "2.0",
-        id: message.id,
-        error: {
-          code: -32000,
-          message: error.message,
-          data: error.data ?? undefined,
-        },
-      });
-    }
+  runMcpServer().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
   });
 }
 
@@ -300,25 +265,35 @@ function shutdownServer(reason, exitCode) {
   }, 25).unref();
 }
 
-async function handleRequest(message) {
-  switch (message.method) {
-    case "initialize":
-      return {
-        protocolVersion: message.params?.protocolVersion ?? "2024-11-05",
-        capabilities: { tools: {} },
-        serverInfo: { name: "deepseek-code-worker", version: SERVER_VERSION },
-      };
-    case "tools/list":
-      return { tools };
-    case "tools/call":
-      try {
-        return await callTool(message.params ?? {});
-      } catch (error) {
-        return toolErrorResult(error);
+async function runMcpServer() {
+  installServerLifecycleHandlers();
+  const server = new McpServer({
+    name: "deepseek-code-worker",
+    version: SERVER_VERSION,
+  });
+
+  for (const tool of tools) {
+    server.registerTool(
+      tool.name,
+      {
+        title: tool.title,
+        description: tool.description,
+        inputSchema: jsonSchemaToZod(tool.inputSchema),
+        outputSchema: jsonSchemaToZod(tool.outputSchema),
+        annotations: tool.annotations,
+      },
+      async (args) => {
+        try {
+          return await callTool({ name: tool.name, arguments: args ?? {} });
+        } catch (error) {
+          return toolErrorResult(error);
+        }
       }
-    default:
-      throw new Error(`Unsupported method: ${message.method}`);
+    );
   }
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
 }
 
 async function runDoctor() {
@@ -2234,6 +2209,45 @@ function implementationSchema() {
   };
 }
 
+function jsonSchemaToZod(schema) {
+  if (!schema || typeof schema !== "object") return z.object({});
+
+  if (schema.type === "object") {
+    const required = new Set(Array.isArray(schema.required) ? schema.required : []);
+    const shape = {};
+    for (const [key, propertySchema] of Object.entries(schema.properties ?? {})) {
+      let property = jsonSchemaToZod(propertySchema);
+      if (!required.has(key)) property = property.optional();
+      shape[key] = property;
+    }
+    let object = z.object(shape);
+    if (schema.additionalProperties === false) object = object.strict();
+    else object = object.passthrough();
+    if (schema.description) object = object.describe(schema.description);
+    return object;
+  }
+
+  if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+    const values = schema.enum.map(String);
+    const enumSchema = values.length === 1
+      ? z.literal(values[0])
+      : z.enum(values);
+    return schema.description ? enumSchema.describe(schema.description) : enumSchema;
+  }
+
+  let result;
+  if (schema.type === "string") result = z.string();
+  else if (schema.type === "number") result = z.number();
+  else if (schema.type === "integer") result = z.number().int();
+  else if (schema.type === "boolean") result = z.boolean();
+  else if (schema.type === "array") result = z.array(jsonSchemaToZod(schema.items ?? {}));
+  else result = z.unknown();
+
+  return schema.description && typeof result.describe === "function"
+    ? result.describe(schema.description)
+    : result;
+}
+
 function normalizeUseCase(value) {
   if (typeof value !== "string" || value.length === 0) return "auto";
   if (!Object.hasOwn(USE_CASES, value)) {
@@ -2640,8 +2654,4 @@ function errorResult(error) {
     message: error.message,
     data: error.data ?? null,
   };
-}
-
-function write(message) {
-  process.stdout.write(`${JSON.stringify(message)}\n`);
 }
