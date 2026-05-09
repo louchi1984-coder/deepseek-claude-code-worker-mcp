@@ -23,7 +23,7 @@
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.31
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.32
 ```
 
 检查环境：
@@ -36,7 +36,7 @@ deepseek-code-worker-mcp --doctor
 
 ```json
 {
-  "server_version": "0.3.20-beta.31",
+  "server_version": "0.3.20-beta.32",
   "ok": true
 }
 ```
@@ -143,6 +143,8 @@ setup 会做两件事：
 - Codex 定任务边界
 - DeepSeek worker 单线程实现
 - Codex 只看紧凑状态，终态后审 diff/checks
+- 一个清楚的实现任务对应一个 worker。第一个 job 还在 running 时，不要为同一任务再开第二个 worker。
+- 如果终态后确实需要后续 worker，新 task 必须带上上一轮 `job_id`、终态、失败/check 结果和当前 diff 摘要。
 - running 时不要请求 logs/events/diffs
 - 不要把 `deepseek_wait_for_job` 当主循环
 

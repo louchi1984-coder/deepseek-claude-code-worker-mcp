@@ -23,7 +23,7 @@ This is not a standalone DeepSeek client. It includes a small `claude-deepseek` 
 Install from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.31
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.32
 ```
 
 Check the environment:
@@ -36,7 +36,7 @@ Expected shape:
 
 ```json
 {
-  "server_version": "0.3.20-beta.31",
+  "server_version": "0.3.20-beta.32",
   "ok": true
 }
 ```
@@ -143,6 +143,10 @@ Rules:
 - Codex defines the task boundary
 - DeepSeek worker performs one implementation task
 - Codex reads compact status and reviews diff/checks after terminal status
+- One clear implementation task should map to one worker. Do not start a second
+  worker for the same task while the first job is still running.
+- If a follow-up worker is needed after terminal status, include the previous
+  job id, terminal status, failure/check result, and current diff summary.
 - Do not request logs/events/diffs while the job is `running`
 - Do not use `deepseek_wait_for_job` as the main loop
 

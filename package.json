@@ -1,6 +1,6 @@
 {
   "name": "deepseek-worker-mcp",
-  "version": "0.3.20-beta.31",
+  "version": "0.3.20-beta.32",
   "description": "MCP server that runs DeepSeek V4 as a Claude Code coding worker with job status, restore, scoped permissions, and review artifacts.",
   "keywords": [
     "mcp",

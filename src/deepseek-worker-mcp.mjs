@@ -81,7 +81,7 @@ const tools = [
     name: "deepseek_start_implementation",
     title: "Start DeepSeek worker job",
     description:
-      "Start an async DeepSeek V4 coding worker and return a job_id immediately. Best default for standard coding tasks: the host agent defines the task boundary, this worker edits/checks files, and the host reviews terminal diff/policy/checks. While status is running, poll compact status with deepseek_get_job; do not request logs/events/diffs unless debugging. Default auto use_case uses reasoning_effort=max.",
+      "Start one async DeepSeek V4 coding worker for one clearly scoped implementation task and return a job_id immediately. Best default: the host agent defines the task boundary, this worker edits/checks files, and the host reviews terminal diff/policy/checks. Do not start a second worker for the same task while the first job is running; poll compact status with deepseek_get_job. If a follow-up worker is needed after terminal status, include the previous job_id, terminal status, failure/check result, and current diff summary in the new task. Do not request logs/events/diffs while running unless debugging. Default auto use_case uses reasoning_effort=max.",
     annotations: {
       readOnlyHint: false,
       destructiveHint: true,
@@ -2125,7 +2125,7 @@ function implementationSchema() {
       task: {
         type: "string",
         description:
-          "Self-contained implementation task. Must ask for real code changes. Include only the worker's bounded execution goal; keep planning, product decisions, and final review in the host agent.",
+          "Self-contained implementation task. Must ask for real code changes. Include only the worker's bounded execution goal; keep planning, product decisions, and final review in the host agent. If this is a follow-up to a previous worker, include the previous job_id, terminal status, failure/check result, and current diff summary so the new worker does not rediscover context from scratch.",
       },
       use_case: {
         type: "string",
