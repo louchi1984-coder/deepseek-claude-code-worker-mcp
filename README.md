@@ -2,96 +2,46 @@
 
 Languages: [English](README.md) | [简体中文](README.zh-CN.md)
 
-Pure-execution MCP server for Codex Desktop. It lets Codex delegate real coding
-work to DeepSeek V4 through Claude Code, so the main Codex conversation can stay
-focused on task boundaries, status polling, and final diff/check review.
+Coding-worker MCP for Codex Desktop. Codex plans, delegates, and reviews; DeepSeek V4 does the expensive code reading, editing, and checking through Claude Code.
 
-The design goal is to save **Codex main-thread tokens**, not DeepSeek tokens.
-DeepSeek is allowed to spend time and tokens doing the implementation work;
-Codex should avoid re-reading the whole codebase, watching long logs, or
-rewriting the same patch in the foreground conversation.
+Goal: **save Codex main-thread tokens, not DeepSeek tokens**. For suitable coding tasks, the intended workflow can reduce Codex main-thread token usage by about 40-60%.
 
-For suitable coding tasks, the intended workflow can reduce Codex main-thread
-token usage by about 40-60%: Codex defines the task, DeepSeek performs the
-implementation in a worker process, and Codex reviews the compact artifacts.
+## What It Does
 
-This is not a standalone DeepSeek client. It includes a small `claude-deepseek`
-launcher that runs the local Claude Code CLI against DeepSeek's
-Anthropic-compatible endpoint.
+- Runs real coding work with DeepSeek V4 through Claude Code
+- Works separately from your normal Claude Code usage
+- Async worker tools: `start` / `get` / `tail` / `wait` / `cancel`
+- Supports long DeepSeek thinking without killing the worker by default
+- Returns status, changed files, snapshot diffs, policy, and checks
+- Uses scoped Claude Code permissions by default; `bypassPermissions` stays off
+- Includes `setup` / `doctor` for install, auth, and environment checks
 
-## Agent Quick Rules
-
-When using this MCP:
-
-1. Start long tasks with `deepseek_start_implementation`.
-2. Do not use `deepseek_wait_for_job` as the main loop.
-3. While status is `running`, use `deepseek_get_job` for compact status.
-4. Do not request logs/events/diffs while the job is still `running`.
-5. Review `file_diffs`, `policy`, and `checks_run` only after terminal status.
-6. The goal is to save Codex tokens: Codex plans/reviews, DeepSeek implements.
-
-It exposes a DeepSeek V4 coding worker backed by Claude Code:
-
-```text
-MCP host
-  -> deepseek-code-worker MCP
-  -> claude-deepseek -p
-  -> real workspace edits
-  -> MCP checks changed files / policy / optional commands
-```
-
-The worker is intentionally not advisory. A call succeeds only when real files change.
-
-## What This MCP Adds
-
-This project is more than a thin "point Claude Code at DeepSeek" wrapper. The MCP
-adds the runtime pieces Codex needs to use DeepSeek as a practical background
-coding worker:
-
-- **Async worker jobs**: start a task, get a `job_id`, and keep the worker running
-  independently of a single foreground tool call.
-- **Status helpers**: `deepseek_get_job` reads compact status;
-  `deepseek_wait_for_job` is only a short observation helper, not the main loop.
-- **Compact structured status**: `get_job` / `tail_job` return phase, process
-  liveness, idle time, changed files so far, and recommended poll timing by
-  default. Logs, stream events, and unified diffs are opt-in so Codex does not
-  spend tokens reading evidence before terminal review.
-- **DeepSeek thinking expectation**: DeepSeek V4 Pro thinking for about 10
-  minutes in one continuous segment can be normal on complex coding work.
-- **Permission guardrails**: default workers use MCP-managed Claude Code `dontAsk`
-  settings plus a `PreToolUse` hook, while `bypassPermissions` stays disabled.
-- **Scoped patch mode**: callers can provide narrow `allowed_dirs` so a worker is
-  limited to a specific patch area.
-- **Snapshot diff and policy**: the MCP snapshots the workspace before/after, then
-  reports changed files, unified diffs, forbidden path violations, docs-only
-  policy, and checks.
-- **Restore and cleanup**: job state is persisted under the OS temp directory,
-  restored after MCP restart, and server shutdown cleans up active child workers.
-- **Setup/doctor flow**: first run can install Claude Code with user confirmation,
-  save a DeepSeek key, and verify the environment with `--doctor`.
-- **Cross-platform cleanup**: macOS/Linux are primary targets; Windows support is
-  best-effort with platform-aware temp paths, executable lookup, and check shell.
+This is not a standalone DeepSeek client. It includes a small `claude-deepseek` launcher that runs the local Claude Code CLI against DeepSeek's Anthropic-compatible endpoint.
 
 ## Quick Start
 
-Install directly from GitHub:
+Install from GitHub:
 
 ```bash
 npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.28
 ```
 
-Global interactive installs run setup automatically. Setup checks Claude Code,
-can install it with user confirmation, prompts for the DeepSeek key if needed,
-and prints the MCP config. In non-interactive installs, the package prints the
-manual next step instead of blocking npm.
-
-To smoke-test the GitHub package without installing globally:
+Check the environment:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.28 --doctor
+deepseek-code-worker-mcp --doctor
 ```
 
-Configure the MCP client:
+Expected shape:
+
+```json
+{
+  "server_version": "0.3.20-beta.28",
+  "ok": true
+}
+```
+
+MCP config:
 
 ```json
 {
@@ -103,15 +53,17 @@ Configure the MCP client:
 }
 ```
 
-From a cloned repo:
+From source:
 
 ```bash
+git clone https://github.com/louchi1984-coder/deepseek-claude-code-worker-mcp.git
+cd deepseek-claude-code-worker-mcp
 npm install
 npm run mcp:setup
 npm run mcp:doctor
 ```
 
-Point the MCP client at the repo script:
+Source-mode MCP config:
 
 ```json
 {
@@ -124,15 +76,9 @@ Point the MCP client at the repo script:
 }
 ```
 
-When npm publishing is available, the install command becomes:
+## If the User Does Not Use Terminal
 
-```bash
-npm i -g deepseek-worker-mcp
-```
-
-### If the user does not use Terminal
-
-Paste this into Codex Desktop and let Codex configure the local machine:
+Paste this into Codex Desktop:
 
 ```text
 Please install and configure this MCP for Codex Desktop:
@@ -147,59 +93,29 @@ Requirements:
 6. Tell me whether I need to restart Codex Desktop.
 ```
 
-## Requirements
+## Requirements and Auth
 
 - Node.js 20+
-- Platform support
-  - macOS and Linux are the primary tested targets
-  - Windows is supported on a best-effort basis when `node`, `npm`, and
-    `claude` / `claude.cmd` are available on `PATH`, but still needs broader
-    real-machine testing
-- A working Claude Code CLI executable
-  - setup can install it with confirmation if `claude` is missing
-  - or use an existing `claude` available on `PATH`
-  - or set `CLAUDE_BIN` to the absolute path of `claude`, `claude.cmd`, or
-    another Claude Code executable
-- DeepSeek auth for the bundled `claude-deepseek` launcher
-  - either `ANTHROPIC_AUTH_TOKEN`
-  - or `DEEPSEEK_API_KEY_FILE`
-  - or a key saved at `~/.codex/secrets/deepseek_api_key`
+- Claude Code CLI
+- DeepSeek API key
+- macOS / Linux are primary targets; Windows is best-effort
 
-This MCP does not have a separate API key. The bundled `claude-deepseek` launcher
-uses DeepSeek credentials through Claude Code's Anthropic-compatible environment
-variables. Run setup after installing or cloning this package:
+Setup can:
 
-```bash
-deepseek-code-worker-setup
-```
+- ask to install `@anthropic-ai/claude-code` when Claude Code is missing
+- prompt for a DeepSeek API key and save it to `~/.codex/secrets/deepseek_api_key`
 
-or, from a cloned repo:
+You can also use:
 
-```bash
-npm run mcp:setup
-```
+- `ANTHROPIC_AUTH_TOKEN`
+- `DEEPSEEK_API_KEY_FILE`
+- `CLAUDE_BIN`
 
-Setup checks for Claude Code. If `claude` is missing and setup is running in an
-interactive terminal, it asks whether to run
-`npm install -g @anthropic-ai/claude-code`. If no DeepSeek auth is configured,
-setup prompts for a DeepSeek API key in the terminal and saves it to
-`~/.codex/secrets/deepseek_api_key` with user-only file permissions. In
-non-interactive MCP mode the server never prompts for secrets; it returns a clear
-doctor/error message instead.
+The package does not bundle a DeepSeek key and does not modify your global Claude Code configuration.
 
-No DeepSeek key is bundled in this package. The published package only includes
-source files, scripts, README files, and the license. If setup does not ask for a
-key, it means one of these is already true:
+## Recommended Use
 
-- `ANTHROPIC_AUTH_TOKEN` is set in the environment.
-- `DEEPSEEK_API_KEY_FILE` points to an existing key file.
-- `~/.codex/secrets/deepseek_api_key` already exists.
-- npm ran postinstall in a non-interactive context and printed manual next steps
-  instead of prompting.
-
-## For Calling Agents
-
-For normal coding tasks, use the async worker with only `cwd` and `task`:
+Start a worker:
 
 ```json
 {
@@ -211,7 +127,7 @@ For normal coding tasks, use the async worker with only `cwd` and `task`:
 }
 ```
 
-Then read status with a non-blocking call:
+Read compact status:
 
 ```json
 {
@@ -222,474 +138,76 @@ Then read status with a non-blocking call:
 }
 ```
 
-`deepseek_get_job`, `deepseek_tail_job`, and `deepseek_wait_for_job` are compact
-by default. They do not include stdout/stderr tails, recent stream events, or
-per-file diffs unless the caller explicitly passes `include_logs`,
-`include_events`, or `include_diff`. Use `deepseek_wait_for_job` only as a short
-observation window; do not make one long foreground tool call just because
-DeepSeek V4 Pro thinking for about 10 minutes in one continuous segment can be
-normal on complex coding work.
+Rules:
 
-Default rules for callers:
+- Codex defines the task boundary
+- DeepSeek worker performs one implementation task
+- Codex reads compact status and reviews diff/checks after terminal status
+- Do not request logs/events/diffs while the job is `running`
+- Do not use `deepseek_wait_for_job` as the main loop
 
-- Remember the objective: save Codex main-thread tokens, not DeepSeek tokens.
-- Default division of labor: the host agent decides task boundaries, the
-  DeepSeek worker executes one clearly scoped implementation task, and the host
-  agent reviews `file_diffs`, `policy`, and `checks_run`.
-- The worker should not spawn subagents or use `Task` unless the user explicitly
-  asks for nested worker delegation.
-- Prefer `deepseek_start_implementation` for standard tasks.
-- After start, prefer `deepseek_get_job` for compact status.
-- Keep status polling compact. Do not request logs/events/diffs until terminal
-  review or explicit debugging.
-- If you use `deepseek_wait_for_job`, treat it as a short foreground observation
-  helper, not the main loop. It keeps the worker alive and returns running status
-  when the observation window ends.
-- Thinking expectations are per continuous segment, not cumulative job runtime:
-
-  | Model / use case | Normal single thinking or quiet segment |
-  | --- | --- |
-  | `deepseek-v4-flash`, `fast_patch` | 1-3 minutes |
-  | `deepseek-v4-flash`, ordinary implementation | 3-5 minutes |
-  | `deepseek-v4-pro[1m]`, debug/agentic/complex/long-context | about 10 minutes |
-  | `deepseek-v4-pro[1m]`, `docs_generation` | 5-10 minutes |
-
-- While the worker is `running`, only observe status/activity. Do not analyze
-  `file_diffs`, `policy`, or `checks_run` until the job is `completed`, `failed`,
-  `cancel_requested`, or `orphaned`.
-- Quiet time is never a cancellation, takeover, or partial-review signal.
-- Use `deepseek_implement_in_workspace` only for tiny, quick edits.
-- Standard implementation uses MCP-managed `dontAsk` permissions with a
-  `PreToolUse` hook, so callers should not need to approve normal Read/Edit
-  operations.
-- Pass `checks` when the validation command is obvious, such as `pnpm test` or
-  `pnpm typecheck`.
-- Do not set `timeout_ms` unless the user explicitly wants a hard stop.
-
-Do not use the worker for everything. It is best for clear implementation tasks
-where the host agent can delegate once and review compact artifacts. Keep tiny
-one-line edits, unclear product/design discussions, and high-risk architectural
-decisions in the host conversation until the task boundary is clear.
-- Do not treat quiet output as failure. Check `process_alive`, `phase`,
-  `observed_state`, `idle_seconds`, `pending_tool_use`, and
-  `changed_files_so_far`.
-- Do not use `bypassPermissions`; this MCP intentionally disables it.
-- Use `worker_profile: "scoped_patch"` only when you also provide narrow
-  `allowed_dirs`.
-- Do not call this MCP for advice-only questions. It is for real workspace edits.
-
-## Commands
-
-```bash
-npm run mcp:deepseek-worker
-```
-
-For an installed package, run:
-
-```bash
-deepseek-code-worker-mcp
-```
-
-Run a local environment check with:
-
-```bash
-npm run mcp:doctor
-```
-
-or, after installation:
-
-```bash
-deepseek-code-worker-mcp --doctor
-```
-
-The doctor checks Node.js, the bundled `claude-deepseek` launcher, the local
-Claude Code CLI, DeepSeek auth, job-root writability, and the default
-`stream-json` Claude Code argument shape. If Claude Code or auth is missing,
-run setup in an interactive terminal.
-
-Configure an MCP client with the package binary:
-
-```json
-{
-  "mcpServers": {
-    "deepseek-code-worker": {
-      "command": "deepseek-code-worker-mcp"
-    }
-  }
-}
-```
-
-For local development without installing the binary, point the client at the
-repo script:
-
-```json
-{
-  "mcpServers": {
-    "deepseek-code-worker": {
-      "command": "node",
-      "args": ["/absolute/path/to/deepseek-claude-code-worker-mcp/src/deepseek-worker-mcp.mjs"]
-    }
-  }
-}
-```
-
-By default this MCP uses its bundled `bin/claude-deepseek.mjs` launcher. Set
-`CLAUDE_DEEPSEEK_BIN=/absolute/path/to/another/launcher` only if you want to
-override it.
+DeepSeek V4 Pro can spend about 10 minutes in one continuous thinking/quiet segment on complex code tasks. That is not cumulative job runtime.
 
 ## Tools
 
-- `deepseek_implement_in_workspace`: synchronous execution. Can run for a long time.
-- `deepseek_start_implementation`: starts a background job and returns `job_id`.
-- `deepseek_get_job`: reads compact async job status and progress.
-- `deepseek_tail_job`: reads status plus opt-in log/event tails.
-- `deepseek_wait_for_job`: observes a job for a short foreground window. It
-  returns completion/failure if done; otherwise it returns `running` and leaves
-  the worker alive.
-- `deepseek_cancel_job`: requests cancellation for a running job.
-
-## DeepSeek V4 Use Cases
-
-The implementation tools accept a `use_case` preset so callers can route work according
-to the official DeepSeek V4 positioning instead of hand-writing strategy into every
-prompt.
-
-| `use_case` | Default model | Thinking | Best for |
-| --- | --- | --- | --- |
-| `auto` | `deepseek-v4-flash` | enabled / high | general implementation with a Flash-first default |
-| `fast_patch` | `deepseek-v4-flash` | disabled / high | small, low-risk edits where speed matters |
-| `simple_agent_task` | `deepseek-v4-flash` | enabled / high | simple Agent tasks, where Flash is close to Pro |
-| `scaffold_or_tests` | `deepseek-v4-flash` | enabled / high | scaffolding, integration glue, CRUD-style code, tests |
-| `debug_loop` | `deepseek-v4-pro[1m]` | enabled / max | reproduce/inspect, locate cause, make minimal fix, validate |
-| `agentic_coding` | `deepseek-v4-pro[1m]` | enabled / max | multi-step coding agents, tool loops, validation; review by default |
-| `complex_reasoning` | `deepseek-v4-pro[1m]` | enabled / max | architecture, failure analysis, hard logic; review by default |
-| `long_context_codebase` | `deepseek-v4-pro[1m]` | enabled / max | broad codebase work that benefits from 1M context; review by default |
-| `docs_generation` | `deepseek-v4-pro[1m]` | enabled / high | documentation generation; allows docs-only diffs |
-
-Manual `model`, `thinking`, and `reasoning_effort` values still override the preset.
-For community-backed day-to-day use, prefer `fast_patch` or `scaffold_or_tests`.
-For bugs, prefer `debug_loop`. For complex Agent scenarios, prefer
-`agentic_coding`, `complex_reasoning`, or `long_context_codebase`; those presets
-return `requires_review: true` even when the success contract passes.
-
-## ECC-Inspired Harness Rules
-
-This worker borrows a few design principles from Everything Claude Code without
-installing or copying that project:
-
-- use_case presets behave like lightweight commands/skills
-- `verification_profile` names the intended verification loop:
-  `smoke`, `standard`, `debug`, `review`, or `docs`
-- `checks` remain the source of truth for actual validation commands
-- complex and long-context presets are review-gated by default
-- safety boundaries stay explicit through `allowed_dirs` and `forbidden_paths`
-- status is persisted under the job directory so callers can resume observation
-
-`verification_profile` is included in the worker prompt and final result. It does
-not invent commands; callers should still pass concrete `checks`.
-
-`use_case` describes task type. `worker_profile` describes the permission and
-artifact contract:
-
-- `implementation` is the default and uses MCP-managed Claude Code
-  `permission_mode: "dontAsk"` with the workspace as the allowed write scope
-- `scoped_patch` opts into `permission_mode: "dontAsk"` with per-worker
-  allow/deny settings and requires explicit, narrow `allowed_dirs`
-- `review` is intended for read-mostly review work
-- `debug_loop` is intended for reproduce/inspect/fix/check loops
-
-`forbidden_paths` may be provided explicitly and otherwise defaults to common
-secret and lock files. The final MCP policy check is authoritative: changes
-outside `allowed_dirs` or inside `forbidden_paths` fail the job even if Claude
-Code wrote them.
-
-When `permission_mode` is `dontAsk`, the MCP passes a temporary Claude Code
-settings object with `permissions.allow`/`permissions.deny`. It allows core file
-tools and caller-provided checks, denies common dangerous Bash patterns and
-forbidden paths, and returns `claude_settings_active: true` in job payloads.
-It also installs a per-worker `PreToolUse` hook handled by this MCP process.
-Default implementation workers can write only inside the workspace. Scoped patch
-workers can write only inside explicit `allowed_dirs` and can only run
-caller-approved Bash checks. Forbidden paths are blocked before execution.
-`bypassPermissions` is intentionally disabled until a real sandbox is added.
-
-## Security Boundary
-
-This MCP is not an OS/container sandbox. Its safety model is:
-
-- Claude Code `dontAsk` settings generated per worker
-- a `PreToolUse` hook that blocks dangerous Bash, forbidden paths, and writes
-  outside the allowed scope
-- a final snapshot policy check over changed files
-
-Those controls are useful guardrails, but they are not strong isolation against a
-malicious process. Run this worker only in workspaces where a local coding agent
-is acceptable. Keep `bypassPermissions` disabled unless you add a real sandbox
-outside this MCP.
-
-DeepSeek V4 Pro with thinking/max can spend a long time without writing files.
-The default is Claude Code `--output-format stream-json` with `--verbose` placed
-before `--output-format` and `--include-partial-messages` after it. `--verbose` is
-required by current Claude Code for stream-json print output. Set
-`output_format: "json"` only as a fallback if the local Claude Code build rejects
-stream-json. Stream events still do not prove whether the model is "thinking" or
-"hung", so callers should show observable process facts instead of claiming the
-model is definitely thinking:
-
-- `phase`: current worker phase, such as `model_running`, `snapshotting`,
-  `model_streaming`, `tool_activity`, `checking`, `completed`, or `failed`
-- `phase_message`: user-readable status text
-- `observed_state`: one of `alive_recent_output_or_startup`,
-  `alive_quiet_no_recent_output`, `alive_with_workspace_changes`,
-  `alive_quiet_with_workspace_changes`, `alive_recent_stream_event`,
-  `process_not_alive`, `completed`, `failed`, `cancel_requested`, or `unknown`
-- `suggested_action`: host-facing next step based on observable state
-- `last_event_at`, `last_event_type`, and `last_event_summary`: compact Claude
-  Code stream event details. `recent_events` is returned only when
-  `include_events: true`.
-- `process_alive` and `process_pid`: whether the child process is still alive
-- `pending_tool_use`, `pending_tool_duration_ms`, and
-  `pending_tool_duration_seconds`: visible when Claude Code emitted a tool_use
-  without a matching tool_result yet
-- `idle_seconds` and `quiet`: how long the worker has produced no stdout/stderr.
-  These are status facts only, not cancellation or review thresholds.
-- `last_output_at`: latest worker log timestamp, if any
-- `recommended_poll_after_ms` and `next_poll`: optional status-check hint. This
-  is not a timeout, watchdog, or instruction to keep polling indefinitely.
-
-For example, `observed_state: "alive_quiet_no_recent_output"` means only that the
-process is still alive and quiet. It is not proof that DeepSeek is thinking, and it
-is not proof that the process is dead. Do not cancel, restart, take over, or
-review partial artifacts solely because a running job is quiet.
-
-In fallback `json` mode, status falls back to process/log/workspace observation
-because Claude Code emits a single final JSON object. Start responses include
-`claude_args_preview`; status/result responses include it only when
-`include_logs: true`.
-
-Async jobs do not have a worker timeout by default. This is intentional: there is no
-official or reliable wall-clock bound for DeepSeek thinking time. `timeout_ms` is
-therefore only a caller-imposed stop time when explicitly provided. The synchronous
-tool keeps a short foreground protection limit; long DeepSeek tasks should use
-`deepseek_start_implementation`.
-
-Caller-imposed stops are artifact-aware. If `timeout_ms` stops the worker after it
-produces changes that stay inside `allowed_dirs`, avoid `forbidden_paths`, satisfy
-the docs-only policy, and pass any completed checks, the result status is
-`partial_caller_timeout` instead of a plain failure. Callers should show
-`requires_review: true` and ask the user or host agent to inspect the diff before
-accepting it. If the worker changed files outside the allowed scope, the policy
-failure still wins and the result remains failed.
-
-Cancellation is artifact-aware too, but it is an explicit stop action, not an
-idle policy. Use `deepseek_cancel_job` only when the user asks to stop, the task
-is clearly obsolete, or there is a terminal/error condition that makes continued
-execution pointless. If cancellation happens after files were produced, the MCP
-preserves the artifacts, runs the MCP-level policy and checks, and may return
-`partial_cancelled` when those checks pass. Treat worker natural-language
-summaries as advisory only; `checks_run`, `policy`, and `files_changed` are the
-authoritative validation record.
-
-Running jobs write local state under the OS temp directory:
-
-```text
-<os-temp>/deepseek-code-worker/jobs/<job_id>/
-  status.json
-  before-snapshot.json
-  stdout.log
-  stderr.log
-```
-
-The MCP can restore jobs from this directory after a server restart. Restored
-completed/failed jobs remain inspectable through `deepseek_get_job` and
-`deepseek_tail_job`. If a persisted job was `running` but the recorded worker PID
-is no longer alive, the MCP marks it `status: "orphaned"` and
-`deepseek_wait_for_job` returns `needs_review` with
-`reason: "orphaned_after_mcp_restart"` instead of waiting forever.
-
-While a job is running, `deepseek_get_job` and `deepseek_tail_job` report:
-
-- `server_version`
-- `elapsed_ms`
-- `worker_profile`
-- `permission_mode`
-- `changed_files_so_far`
-- `diff_available`
-- `review_summary`
-- `last_change_at`
-- `observed_state`
-- `suggested_action`
-- `process_alive`
-- `last_event_summary`
-- `recommended_poll_after_ms`
+- `deepseek_start_implementation`: starts a background job and returns `job_id`
+- `deepseek_get_job`: reads compact job status
+- `deepseek_tail_job`: reads compact status; logs are opt-in
+- `deepseek_wait_for_job`: short observation window; does not kill the worker
+- `deepseek_cancel_job`: requests cancellation
+- `deepseek_implement_in_workspace`: synchronous mode for tiny edits
 
 Large evidence is opt-in:
 
-- pass `include_logs: true` for `stdout_tail` / `stderr_tail`
-- pass `include_events: true` for recent stream-json events
-- pass `include_diff: true` on `get_job` / `wait_for_job` when terminal review
-  needs per-file unified diffs
+- `include_logs: true`
+- `include_events: true`
+- `include_diff: true`
 
-For status checks, prefer `deepseek_get_job`; it returns immediately.
-`deepseek_wait_for_job` is only a bounded observation helper. It
-loops inside the MCP server for the requested observation window. If the worker
-completes or fails during that window, it returns the terminal status. Otherwise
-it returns `status: "running"` with compact activity and changed files so far. It
-never cancels the worker by itself, and elapsed observation time is not a
-recommendation to cancel.
+## Use Cases
 
-Do not review diffs, policy, or checks while the worker is still running unless
-the user explicitly asks for partial review. Wait for a terminal status first,
-then inspect `file_diffs`, `policy`, and `checks_run`.
+| `use_case` | Default model | effort | Best for |
+| --- | --- | --- | --- |
+| `auto` | `deepseek-v4-flash` | `max` | general implementation |
+| `fast_patch` | `deepseek-v4-flash` | `high` | small patches |
+| `simple_agent_task` | `deepseek-v4-flash` | `high` | simple agentic coding |
+| `scaffold_or_tests` | `deepseek-v4-flash` | `high` | scaffolding, glue code, tests |
+| `debug_loop` | `deepseek-v4-pro[1m]` | `max` | reproduce, locate, fix, validate |
+| `agentic_coding` | `deepseek-v4-pro[1m]` | `max` | multi-step implementation |
+| `complex_reasoning` | `deepseek-v4-pro[1m]` | `max` | architecture, hard logic, failure analysis |
+| `long_context_codebase` | `deepseek-v4-pro[1m]` | `max` | broad codebase work |
+| `docs_generation` | `deepseek-v4-pro[1m]` | `high` | documentation |
 
-The MCP server is expected to stay alive while the host keeps its stdio transport
-open. When the host closes stdin or sends `SIGTERM` / `SIGINT`, the server shuts
-itself down and asks any still-running worker child process to stop, so stale MCP
-server processes should not accumulate after reconnects.
+Explicit `model`, `thinking`, or `reasoning_effort` values override the preset.
 
-Completed results include compact snapshot-based review data even when the
-workspace is not a git repository:
+## Permission Boundary
 
-- `files_changed` and `change_count`
-- `diff_available`
-- `review_summary`: compact fields for host UIs and calling models:
-  `files_changed`, `change_count`, `policy_ok`, `checks_passed`,
-  `checks_count`, `requires_review`, `diff_available`, `failure_reason`,
-  `last_successful_tool`, `last_failed_tool`, `last_error_kind`, and
-  `tool_calls_since_last_change`
+This MCP is not an OS/container sandbox. Its guardrails are:
 
-Pass `include_diff: true` when terminal review needs `file_diffs`.
+- temporary Claude Code `dontAsk` settings per worker
+- a `PreToolUse` hook for dangerous Bash, forbidden paths, and out-of-scope writes
+- final workspace snapshot policy checks
 
-The worker prompt is hardened for tool behavior: it asks Claude Code to prefer
-Read/Edit or MultiEdit, allows safe read-only Bash fallback such as `ls`, `wc`,
-`cat`, or `sed -n` when Read is blocked or repeatedly fails, avoids Bash writes,
-shell redirection, and heredocs for normal source edits, lists changed files,
-runs requested checks, and stops with a clear blocker instead of retrying
-indefinitely after permission/tool failures.
+`bypassPermissions` is disabled by default. Keep it off unless you add a real sandbox outside this MCP.
 
-## Success Contract
+Use `worker_profile: "scoped_patch"` with narrow `allowed_dirs` for tightly scoped patches.
 
-The server returns `status: "changed_files"` only when:
-
-- files actually changed
-- no changed file is outside `allowed_dirs`
-- no changed file is under `forbidden_paths`
-- the diff is not docs-only unless `allow_docs_only: true`
-- all optional `checks` pass
-
-It may return `status: "partial_caller_timeout"` when valid file changes exist but
-a caller-provided `timeout_ms` stopped the worker process. This is useful for host
-UIs that need an explicit foreground limit without discarding valid artifacts.
-
-It may return `status: "partial_cancelled"` when `deepseek_cancel_job` stopped the
-worker after valid file changes existed and MCP-level policy/checks passed.
-
-Otherwise it returns `status: "failed"` with `failure_reason`.
-
-## Smoke Tests
-
-Recommended pre-publish checks:
+## Verification
 
 ```bash
 npm run mcp:doctor
-node --check src/deepseek-worker-mcp.mjs
-node --check src/core/config.mjs
-node --check src/core/stream-events.mjs
+npm run mcp:smoke:stream
 npm run mcp:smoke:permission
 npm run mcp:smoke:restore
-npm run mcp:smoke:stream
 ```
 
-`npm run mcp:smoke` starts a real DeepSeek worker and can take much longer. Run
-it before a release when `claude-deepseek` and a test workspace are available.
+Real worker smoke:
 
-Use a code file for execution smoke tests, for example `smoke.js` or `smoke.ts`.
-Pure `.txt`, `.md`, `.mdx`, `.rst`, `.adoc`, or `docs/` changes are classified as
-docs-only and fail with `failure_reason: "docs_only_change"` unless
-`allow_docs_only: true` is passed. This is intentional policy behavior, not a
-worker execution failure.
+```bash
+npm run mcp:smoke
+```
 
-Use `npm run mcp:smoke:permission` to test the `PreToolUse` hook decisions for
-approved checks, dangerous Bash, scoped Bash denial, allowed writes, out-of-scope
-writes, and forbidden path reads.
+The real smoke requires Claude Code CLI and a DeepSeek key, and can take longer.
 
-Use `npm run mcp:smoke:restore` to test durable job restore without starting a
-real DeepSeek worker. It creates a fake persisted running job, verifies that a new
-MCP process restores it as `orphaned`, then cleans up the temporary files.
+## Status
 
-Use `npm run mcp:smoke:stream` to test the stream-json event classifier fixtures
-for thinking deltas, tool use, tool result, final result, nested event payloads,
-and partial JSON line handling.
-
-## Changelog
-
-### 0.3.20
-
-- Added best-effort Windows support by using the OS temp directory, platform PATH
-  delimiters, Windows executable extensions, and platform-specific check shells.
-- README now documents Windows as experimental/best-effort.
-
-### 0.3.19
-
-- README now starts with a publish-ready quick start for cloned repos and future
-  npm installs.
-- Removed placeholder package repository metadata.
-- Updated tool descriptions to match passive running-job observation behavior.
-
-### 0.3.18
-
-- MCP server now exits on stdio close/end and on `SIGTERM` / `SIGINT`.
-- Shutdown marks running jobs as `cancel_requested`, records
-  `mcp_server_shutdown`, and terminates any active worker child process.
-
-### 0.3.17
-
-- `deepseek_wait_for_job` is now passive while jobs are running. It reports
-  completion/failure or running status; it no longer marks quiet running jobs as
-  `needs_review`.
-- README now tells calling agents to review diffs/checks only after terminal job
-  status.
-
-### 0.3.16
-
-- `deepseek_wait_for_job` now has an MCP foreground wait cap. A single wait call
-  returns before common host tool-call limits while leaving long-running DeepSeek
-  workers alive.
-
-### 0.3.15
-
-- Setup now offers to install Claude Code with user confirmation when `claude`
-  is missing.
-- Doctor now points users to setup for both Claude Code and DeepSeek auth.
-
-### 0.3.14
-
-- Added interactive setup command: `deepseek-code-worker-setup` /
-  `deepseek-code-worker-mcp --setup`.
-- Setup can save a DeepSeek API key to `~/.codex/secrets/deepseek_api_key`.
-
-### 0.3.13
-
-- Added bundled `claude-deepseek` launcher.
-- Added package bin aliases: `claude-deepseek`, `claude-deepseek-pro`, and
-  `claude-deepseek-flash`.
-- Doctor now checks Claude Code CLI and DeepSeek auth in addition to the MCP
-  server.
-
-### 0.3.12
-
-- Clarified that this MCP is not standalone and requires a working
-  `claude-deepseek` launcher.
-- Improved missing-launcher error messages.
-
-### 0.3.11
-
-- Added durable job restore under the OS temp directory.
-- Added `orphaned_after_mcp_restart` status for persisted running jobs whose PID
-  is no longer alive.
-- Split config and stream event parsing into `src/core`.
-- Added stream event and restore smoke tests.
-- Switched default implementation permissions to MCP-managed `dontAsk` plus
-  `PreToolUse` hook.
-- Added package binary and doctor command.
-- Removed local hard-coded `claude-deepseek` path.
+This project is currently beta. It is suitable for internal projects and early adopters. Before a stable npm release, run a clean-machine install and real worker end-to-end verification.
