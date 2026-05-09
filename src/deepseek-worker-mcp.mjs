@@ -54,7 +54,7 @@ const tools = [
   {
     name: "deepseek_implement_in_workspace",
     description:
-      "Pure execution worker. Runs Claude Code through claude-deepseek in a real workspace, requires real file changes, and returns changed files plus validation status. Use for implementation tasks, not advice.",
+      "Synchronous pure-execution coding worker for tiny edits only. Runs Claude Code through claude-deepseek in a real workspace, requires real file changes, and returns changed files plus validation status. Prefer deepseek_start_implementation for normal or long tasks. Use for implementation, not advice.",
     annotations: {
       title: "Run DeepSeek worker synchronously",
       readOnlyHint: false,
@@ -67,7 +67,7 @@ const tools = [
   {
     name: "deepseek_start_implementation",
     description:
-      "Start a long-running pure execution worker job and return immediately with a job id. Poll with deepseek_get_job.",
+      "Start an async DeepSeek V4 coding worker and return a job_id immediately. Best default for standard coding tasks: the host agent defines the task boundary, this worker edits/checks files, and the host reviews terminal diff/policy/checks. While status is running, poll compact status with deepseek_get_job; do not request logs/events/diffs unless debugging. Default auto use_case uses reasoning_effort=max.",
     annotations: {
       title: "Start DeepSeek worker job",
       readOnlyHint: false,
@@ -79,7 +79,8 @@ const tools = [
   },
   {
     name: "deepseek_get_job",
-    description: "Get the current status/result of a deepseek_start_implementation job.",
+    description:
+      "Read compact status/result for a DeepSeek worker job. This is the default polling tool. By default it omits stdout/stderr, stream events, and per-file diffs to save host tokens. While status is running, use returned progress/suggested_action only; review file_diffs, policy, and checks_run after terminal status.",
     annotations: {
       title: "Read DeepSeek worker status",
       readOnlyHint: true,
@@ -101,7 +102,8 @@ const tools = [
   },
   {
     name: "deepseek_tail_job",
-    description: "Return compact running job progress and files changed so far. Logs/events are opt-in to save caller tokens.",
+    description:
+      "Return compact running-job progress and files changed so far. Use for lightweight status views, not full review. Logs/events are opt-in and should stay disabled during normal running-state polling to save host tokens.",
     annotations: {
       title: "Read DeepSeek worker tail",
       readOnlyHint: true,
@@ -123,7 +125,7 @@ const tools = [
   {
     name: "deepseek_wait_for_job",
     description:
-      "Observe a running DeepSeek worker job for a short foreground window. Returns completion/failure if done; otherwise returns running status and recent activity. Does not cancel or review the worker.",
+      "Observe a DeepSeek worker job for a short foreground window. Returns completion/failure if done; otherwise returns running compact status. This is not the main polling loop, not a timeout policy, and never cancels or reviews the worker. DeepSeek V4 Pro can spend about 10 minutes in one continuous thinking/quiet segment.",
     annotations: {
       title: "Observe DeepSeek worker job",
       readOnlyHint: true,
@@ -158,7 +160,8 @@ const tools = [
   },
   {
     name: "deepseek_cancel_job",
-    description: "Request cancellation of a running DeepSeek worker job.",
+    description:
+      "Request cancellation of a running DeepSeek worker job. Use only when the user asks to stop, the task is obsolete, or continuing is clearly unsafe. Do not cancel merely because the job is quiet or still thinking.",
     annotations: {
       title: "Cancel DeepSeek worker job",
       readOnlyHint: false,
@@ -2119,18 +2122,22 @@ function implementationSchema() {
     type: "object",
     properties: {
       cwd: { type: "string", description: "Absolute workspace path where code should be edited." },
-      task: { type: "string", description: "Self-contained implementation task. Must ask for real code changes." },
+      task: {
+        type: "string",
+        description:
+          "Self-contained implementation task. Must ask for real code changes. Include only the worker's bounded execution goal; keep planning, product decisions, and final review in the host agent.",
+      },
       use_case: {
         type: "string",
         enum: Object.keys(USE_CASES),
         description:
-          "DeepSeek V4 official-use-case preset. Routes model/thinking defaults: flash for fast/simple agent tasks, pro[1m] for agentic coding, complex reasoning, long-context codebase work, or docs generation.",
+          "Task preset. Defaults to auto, which uses deepseek-v4-flash with thinking enabled and reasoning_effort=max. Use debug_loop/agentic_coding/complex_reasoning/long_context_codebase for Pro[1m] work.",
       },
       worker_profile: {
         type: "string",
         enum: Object.keys(WORKER_PROFILES),
         description:
-          "Worker permission/output contract. Defaults to implementation. Use scoped_patch to opt into dontAsk with per-worker allow/deny settings and explicit narrow allowed_dirs.",
+          "Permission/output contract. Defaults to implementation. Use scoped_patch only with narrow allowed_dirs for tightly bounded patches; review is read-mostly; debug_loop is for reproduce/fix/check loops.",
       },
       allowed_dirs: {
         type: "array",
@@ -2145,7 +2152,7 @@ function implementationSchema() {
       checks: {
         type: "array",
         items: { type: "string" },
-        description: "Optional shell commands to run after successful edits.",
+        description: "Optional validation commands to run after successful edits, such as typecheck or tests. These commands are the authoritative verification record.",
       },
       timeout_ms: {
         type: "number",
@@ -2155,7 +2162,7 @@ function implementationSchema() {
       check_timeout_ms: { type: "number", description: "Per-check timeout. Defaults to 10 minutes." },
       poll_after_ms: {
         type: "number",
-        description: "Suggested async polling interval returned to callers. Defaults from use_case and can be overridden by the caller.",
+        description: "Suggested async status-check interval returned to callers. This is a hint, not a timeout or liveness policy.",
       },
       idle_after_ms: {
         type: "number",
@@ -2171,7 +2178,7 @@ function implementationSchema() {
       reasoning_effort: {
         type: "string",
         enum: ["high", "max"],
-        description: "DeepSeek V4 thinking strength hint. Complex Agent scenarios default to max.",
+        description: "DeepSeek V4 thinking strength hint. Default auto and Pro/complex use cases use max.",
       },
       verification_profile: {
         type: "string",

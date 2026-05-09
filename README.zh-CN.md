@@ -23,7 +23,7 @@
 从 GitHub 安装：
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.28
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.29
 ```
 
 检查环境：
@@ -36,7 +36,7 @@ deepseek-code-worker-mcp --doctor
 
 ```json
 {
-  "server_version": "0.3.20-beta.28",
+  "server_version": "0.3.20-beta.29",
   "ok": true
 }
 ```
