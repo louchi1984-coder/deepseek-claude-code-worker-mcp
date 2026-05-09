@@ -37,6 +37,7 @@ import {
   MAX_FILE_BYTES,
   MAX_OUTPUT_CHARS,
   MAX_STREAM_EVENTS,
+  SAFE_READONLY_BASH_ALLOW_RULES,
   SELF_SCRIPT,
   SERVER_VERSION,
   USE_CASES,
@@ -993,7 +994,7 @@ function buildWorkerPrompt(args, allowedRoots, forbiddenPaths) {
     "Do not spawn subagents or use Task unless the caller explicitly asks for nested worker delegation.",
     "Do not write plans, reports, or documentation unless the task explicitly asks for documentation.",
     "Do not stop after analysis. Edit files directly.",
-    "Prefer Claude Code Read for reading files. If Read is unavailable, blocked, or repeatedly fails, you may use safe read-only Bash fallback such as ls, wc, cat, or sed -n. Do not use Bash to write files.",
+    "Use Read for focused file inspection. For locating context in large files or codebases, prefer safe read-only Bash such as rg, grep, wc -l, sed -n, ls, find, git status, git diff, or git show over paging through huge files with repeated Read calls. Do not use Bash to write files.",
     "Prefer Edit or MultiEdit for file changes; do not use shell redirection, heredoc, or script-generated rewrites for normal edits.",
     "If a tool or permission is blocked, report the blocker and stop instead of retrying in place.",
     "After editing, list changed files exactly and run requested checks when possible.",
@@ -1026,6 +1027,7 @@ function buildClaudeSettings(args, cwd) {
     "Write",
     "NotebookRead",
     "NotebookEdit",
+    ...SAFE_READONLY_BASH_ALLOW_RULES,
     ...args.checks.map((check) => `Bash(${check})`),
   ];
   const deny = [
@@ -1097,10 +1099,27 @@ function bashPermissionDecision(command, config) {
   if (!normalized) return denyPermission("Empty Bash command blocked by worker policy.");
   if ((config.checks ?? []).includes(normalized)) return allowPermission();
   if (isDangerousCommand(normalized)) return denyPermission(`Bash command blocked by worker policy: ${normalized}`);
+  if (isSafeReadOnlyCommand(normalized)) return allowPermission();
   if (config.worker_profile === "scoped_patch") {
     return denyPermission(`Bash command is not an approved check for scoped_patch: ${normalized}`);
   }
   return null;
+}
+
+function isSafeReadOnlyCommand(command) {
+  if (hasShellWriteOrChaining(command)) return false;
+  if (/^rg(\s|$)/.test(command)) return true;
+  if (/^grep(\s|$)/.test(command)) return true;
+  if (/^wc\s+(-[clmwL]+\s+)?/.test(command)) return true;
+  if (/^sed\s+-n\s+/.test(command)) return true;
+  if (/^ls(\s|$)/.test(command)) return true;
+  if (/^find\s+/.test(command)) return true;
+  if (/^git\s+(status|diff|show)\b/.test(command)) return true;
+  return false;
+}
+
+function hasShellWriteOrChaining(command) {
+  return /(^|[^\\])(;|&&|\|\||\||>|<|`|\$\()/.test(command);
 }
 
 function filePermissionDecision(toolInput, config, { write }) {

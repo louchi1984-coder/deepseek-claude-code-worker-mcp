@@ -15,8 +15,23 @@ const cases = [
     expect: "allow",
   },
   {
+    name: "safe readonly wc",
+    input: { tool_name: "Bash", tool_input: { command: "wc -l src/index.js" } },
+    expect: "allow",
+  },
+  {
+    name: "safe readonly rg",
+    input: { tool_name: "Bash", tool_input: { command: "rg \"function\" src" } },
+    expect: "allow",
+  },
+  {
     name: "unapproved scoped bash",
     input: { tool_name: "Bash", tool_input: { command: "cat src/index.js" } },
+    expect: "deny",
+  },
+  {
+    name: "readonly command with redirect is denied",
+    input: { tool_name: "Bash", tool_input: { command: "rg \"x\" src > out.txt" } },
     expect: "deny",
   },
   {

@@ -2,7 +2,7 @@ import { dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-export const SERVER_VERSION = "0.3.20-beta.33";
+export const SERVER_VERSION = "0.3.20-beta.34";
 export const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const SELF_SCRIPT = resolve(process.argv[1] ?? "deepseek-worker-mcp.mjs");
 export const DEFAULT_CLAUDE_DEEPSEEK = resolve(PACKAGE_ROOT, "bin/claude-deepseek.mjs");
@@ -66,6 +66,18 @@ export const DANGEROUS_BASH_DENY_RULES = [
   "Bash(yarn install*)",
 ];
 
+export const SAFE_READONLY_BASH_ALLOW_RULES = [
+  "Bash(rg *)",
+  "Bash(grep *)",
+  "Bash(wc *)",
+  "Bash(sed -n *)",
+  "Bash(ls *)",
+  "Bash(find *)",
+  "Bash(git status*)",
+  "Bash(git diff*)",
+  "Bash(git show*)",
+];
+
 export const WORKER_PROFILES = {
   implementation: {
     permission_mode: "dontAsk",
@@ -77,7 +89,7 @@ export const WORKER_PROFILES = {
     permission_mode: "dontAsk",
     requires_allowed_dirs: true,
     prompt:
-      "Worker profile: scoped_patch. Make only the requested narrow patch. Use the approved file tools and avoid Bash unless the caller explicitly approved a check.",
+      "Worker profile: scoped_patch. Make only the requested narrow patch. Use Read for focused file inspection, safe read-only Bash such as rg/wc/sed -n/git diff for locating context, and Edit/MultiEdit for writes. Do not use Bash to write files.",
   },
   review: {
     permission_mode: "dontAsk",

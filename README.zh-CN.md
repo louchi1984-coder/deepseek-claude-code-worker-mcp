@@ -30,7 +30,7 @@ GitHub / 不做全局安装：
     "deepseek-code-worker": {
       "command": "npx",
       "args": [
-        "github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.33"
+        "github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.34"
       ]
     }
   }
@@ -63,14 +63,14 @@ npm run mcp:doctor
 检查 GitHub tag，不安装：
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.33 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.34 --doctor
 ```
 
 看到类似输出即可：
 
 ```json
 {
-  "server_version": "0.3.20-beta.33",
+  "server_version": "0.3.20-beta.34",
   "ok": true
 }
 ```
