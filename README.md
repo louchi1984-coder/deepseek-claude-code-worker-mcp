@@ -23,7 +23,7 @@ This is not a standalone DeepSeek client. It includes a small `claude-deepseek` 
 Install from GitHub:
 
 ```bash
-npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.29
+npm i -g github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.30
 ```
 
 Check the environment:
@@ -36,7 +36,7 @@ Expected shape:
 
 ```json
 {
-  "server_version": "0.3.20-beta.29",
+  "server_version": "0.3.20-beta.30",
   "ok": true
 }
 ```

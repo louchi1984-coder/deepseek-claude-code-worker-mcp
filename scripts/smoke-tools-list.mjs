@@ -40,6 +40,8 @@ const checks = {
   start_mentions_async: /async DeepSeek V4 coding worker/.test(start?.description ?? ""),
   start_mentions_compact_polling: /poll compact status with deepseek_get_job/.test(start?.description ?? ""),
   start_mentions_default_max: /reasoning_effort=max/.test(start?.description ?? ""),
+  start_has_title: start?.title === "Start DeepSeek worker job",
+  start_has_output_schema: start?.outputSchema?.type === "object",
   get_mentions_omit_evidence: /omits stdout\/stderr, stream events, and per-file diffs/.test(get?.description ?? ""),
   wait_mentions_not_main_loop: /not the main polling loop/.test(wait?.description ?? ""),
   task_schema_keeps_review_in_host: /final review in the host agent/.test(schema.task?.description ?? ""),

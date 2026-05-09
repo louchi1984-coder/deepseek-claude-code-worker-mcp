@@ -161,11 +161,13 @@ send(7, "tools/call", {
   arguments: { job_id: jobId, include_logs: true, include_events: true, include_diff: true },
 });
 
-const getJob = parseToolPayload(await waitForResponseId(2, 5000));
+const getJobResponse = await waitForResponseId(2, 5000);
+const getJob = parseToolPayload(getJobResponse);
 const waitJob = parseToolPayload(await waitForResponseId(3, 5000));
 const noWaitJob = parseToolPayload(await waitForResponseId(4, 5000));
 const runningNoWaitJob = parseToolPayload(await waitForResponseId(5, 5000));
 const invalidPoll = await waitForResponseId(6, 5000);
+const invalidPollPayload = parseToolPayload(invalidPoll);
 const verboseGetJob = parseToolPayload(await waitForResponseId(7, 5000));
 server.kill("SIGTERM");
 runningPlaceholder.kill("SIGTERM");
@@ -175,6 +177,7 @@ rmSync(cwd, { recursive: true, force: true });
 
 console.log(JSON.stringify({
   get_status: getJob.status,
+  get_has_structured_content: getJobResponse.result?.structuredContent?.server_version != null,
   get_observed_state: getJob.progress?.observed_state,
   wait_status: waitJob.status,
   wait_reason: waitJob.reason,
@@ -190,7 +193,8 @@ console.log(JSON.stringify({
   verbose_get_has_logs: hasKeyDeep(verboseGetJob, "stdout_tail") && hasKeyDeep(verboseGetJob, "stderr_tail"),
   verbose_get_has_events: hasKeyDeep(verboseGetJob, "recent_events"),
   verbose_get_has_diffs: hasKeyDeep(verboseGetJob, "file_diffs"),
-  invalid_poll_error: invalidPoll.error?.message ?? null,
+  invalid_poll_is_error: invalidPoll.result?.isError ?? false,
+  invalid_poll_error: invalidPollPayload.error?.message ?? null,
   changed_files: getJob.progress?.changed_files_so_far ?? [],
   auto_reasoning_effort: USE_CASES.auto.reasoning_effort,
 }, null, 2));
@@ -198,6 +202,7 @@ console.log(JSON.stringify({
 if (stderr) process.stderr.write(stderr);
 if (
   getJob.status !== "orphaned"
+  || getJobResponse.result?.structuredContent?.server_version == null
   || getJob.progress?.observed_state !== "orphaned_after_mcp_restart"
   || waitJob.status !== "needs_review"
   || waitJob.reason !== "orphaned_after_mcp_restart"
@@ -215,7 +220,8 @@ if (
   || !hasKeyDeep(verboseGetJob, "stderr_tail")
   || !hasKeyDeep(verboseGetJob, "recent_events")
   || !hasKeyDeep(verboseGetJob, "file_diffs")
-  || invalidPoll.error?.message !== "poll_after_ms must be a positive number"
+  || invalidPoll.result?.isError !== true
+  || invalidPollPayload.error?.message !== "poll_after_ms must be a positive number"
   || !getJob.progress?.changed_files_so_far?.includes("sample.js")
   || USE_CASES.auto.reasoning_effort !== "max"
 ) {

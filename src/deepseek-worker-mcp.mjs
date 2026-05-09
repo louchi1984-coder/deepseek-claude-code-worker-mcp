@@ -50,9 +50,19 @@ import {
 const jobs = new Map();
 let shuttingDown = false;
 
+const toolOutputSchema = {
+  type: "object",
+  properties: {
+    server_version: { type: "string" },
+    status: { type: "string" },
+  },
+  additionalProperties: true,
+};
+
 const tools = [
   {
     name: "deepseek_implement_in_workspace",
+    title: "Run DeepSeek worker synchronously",
     description:
       "Synchronous pure-execution coding worker for tiny edits only. Runs Claude Code through claude-deepseek in a real workspace, requires real file changes, and returns changed files plus validation status. Prefer deepseek_start_implementation for normal or long tasks. Use for implementation, not advice.",
     annotations: {
@@ -63,9 +73,11 @@ const tools = [
       openWorldHint: false,
     },
     inputSchema: implementationSchema({ includeAsync: false }),
+    outputSchema: toolOutputSchema,
   },
   {
     name: "deepseek_start_implementation",
+    title: "Start DeepSeek worker job",
     description:
       "Start an async DeepSeek V4 coding worker and return a job_id immediately. Best default for standard coding tasks: the host agent defines the task boundary, this worker edits/checks files, and the host reviews terminal diff/policy/checks. While status is running, poll compact status with deepseek_get_job; do not request logs/events/diffs unless debugging. Default auto use_case uses reasoning_effort=max.",
     annotations: {
@@ -76,9 +88,11 @@ const tools = [
       openWorldHint: false,
     },
     inputSchema: implementationSchema({ includeAsync: true }),
+    outputSchema: toolOutputSchema,
   },
   {
     name: "deepseek_get_job",
+    title: "Read DeepSeek worker status",
     description:
       "Read compact status/result for a DeepSeek worker job. This is the default polling tool. By default it omits stdout/stderr, stream events, and per-file diffs to save host tokens. While status is running, use returned progress/suggested_action only; review file_diffs, policy, and checks_run after terminal status.",
     annotations: {
@@ -99,9 +113,11 @@ const tools = [
       required: ["job_id"],
       additionalProperties: false,
     },
+    outputSchema: toolOutputSchema,
   },
   {
     name: "deepseek_tail_job",
+    title: "Read DeepSeek worker tail",
     description:
       "Return compact running-job progress and files changed so far. Use for lightweight status views, not full review. Logs/events are opt-in and should stay disabled during normal running-state polling to save host tokens.",
     annotations: {
@@ -121,9 +137,11 @@ const tools = [
       required: ["job_id"],
       additionalProperties: false,
     },
+    outputSchema: toolOutputSchema,
   },
   {
     name: "deepseek_wait_for_job",
+    title: "Observe DeepSeek worker job",
     description:
       "Observe a DeepSeek worker job for a short foreground window. Returns completion/failure if done; otherwise returns running compact status. This is not the main polling loop, not a timeout policy, and never cancels or reviews the worker. DeepSeek V4 Pro can spend about 10 minutes in one continuous thinking/quiet segment.",
     annotations: {
@@ -157,9 +175,11 @@ const tools = [
       required: ["job_id"],
       additionalProperties: false,
     },
+    outputSchema: toolOutputSchema,
   },
   {
     name: "deepseek_cancel_job",
+    title: "Cancel DeepSeek worker job",
     description:
       "Request cancellation of a running DeepSeek worker job. Use only when the user asks to stop, the task is obsolete, or continuing is clearly unsafe. Do not cancel merely because the job is quiet or still thinking.",
     annotations: {
@@ -177,6 +197,7 @@ const tools = [
       required: ["job_id"],
       additionalProperties: false,
     },
+    outputSchema: toolOutputSchema,
   },
 ];
 
@@ -290,7 +311,11 @@ async function handleRequest(message) {
     case "tools/list":
       return { tools };
     case "tools/call":
-      return callTool(message.params ?? {});
+      try {
+        return await callTool(message.params ?? {});
+      } catch (error) {
+        return toolErrorResult(error);
+      }
     default:
       throw new Error(`Unsupported method: ${message.method}`);
   }
@@ -2275,8 +2300,10 @@ function assertInside(root, candidate, label) {
 }
 
 function isInside(root, candidate) {
-  const rel = relative(root, candidate);
-  return rel === "" || (!rel.startsWith("..") && !rel.includes(`..${sep}`));
+  const normalizedRoot = platform() === "win32" ? resolve(root).toLowerCase() : resolve(root);
+  const normalizedCandidate = platform() === "win32" ? resolve(candidate).toLowerCase() : resolve(candidate);
+  const rel = relative(normalizedRoot, normalizedCandidate);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
 function isDocPath(path) {
@@ -2588,6 +2615,23 @@ function toolResult(value) {
     : { server_version: SERVER_VERSION, value };
   return {
     content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+    structuredContent: payload,
+  };
+}
+
+function toolErrorResult(error) {
+  const payload = {
+    server_version: SERVER_VERSION,
+    status: "error",
+    error: {
+      message: error.message,
+      data: error.data ?? null,
+    },
+  };
+  return {
+    isError: true,
+    content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+    structuredContent: payload,
   };
 }
 
