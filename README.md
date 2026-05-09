@@ -159,6 +159,30 @@ Rules:
 
 DeepSeek V4 Pro can spend about 10 minutes in one continuous thinking/quiet segment on complex code tasks. That is not cumulative job runtime.
 
+## Codex Token-Saving Discipline
+
+This MCP saves tokens when Codex reads and writes less code. Recommended practice:
+
+- Give the worker a narrow task: one goal, clear boundaries, and explicit validation commands.
+- Do not make Codex read the whole codebase before delegating; pass only the project brief needed for this slice.
+- While a job is running, avoid logs, events, and diffs by default; read compact status only when facts are needed.
+- After terminal status, review only `files_changed`, key implementation ranges, checks, and known risks.
+- Large generated result files, eval outputs, log summaries, and snapshot documents should not be repeatedly read or edited by the worker by default. Prefer letting the worker change core implementation and let validation commands or the host produce generated outputs at the end.
+- Follow-up workers should receive only the necessary previous-result summary, not the full conversation history.
+
+Keep the project brief short, for example:
+
+```text
+Project brief:
+- Project: <one-line project goal>
+- Current slice: <module or feature boundary>
+- Task: <single implementation goal>
+- Boundaries: <allowed files/dirs>
+- Do not touch: <forbidden paths or generated outputs>
+- Validate: <commands>
+- Previous result: <job id + terminal status + relevant diff/check summary>
+```
+
 ## Tools
 
 - `deepseek_start_implementation`: starts a background job and returns `job_id`

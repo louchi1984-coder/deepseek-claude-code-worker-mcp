@@ -157,6 +157,30 @@ setup 会做两件事：
 
 DeepSeek V4 Pro 复杂任务里，单次连续 thinking/quiet 约 10 分钟是正常的，不是累计 job 总时长。
 
+## 省 Codex Token 的工作纪律
+
+这个 MCP 的价值来自“少让 Codex 读写代码”，不是来自让 DeepSeek 便宜。推荐这样用：
+
+- 派给 worker 的任务要窄：一个目标、清楚边界、明确验证命令。
+- Codex 不要先读完整代码库再派活；只下发本轮必须知道的项目 brief。
+- running 时默认不要请求 logs、events、diffs；需要状态时读紧凑状态。
+- 终态后 Codex 只审 `files_changed`、核心实现区间、checks 和 known risks。
+- 大型生成结果文件、评估输出、日志汇总、快照文档，不要默认让 worker 反复读写；优先让 worker 改核心实现，由验证命令或主线程最后统一生成结果。
+- 后续 worker 只带上一轮必要摘要，不带长对话历史。
+
+项目 brief 建议保持很短，例如：
+
+```text
+Project brief:
+- Project: <one-line project goal>
+- Current slice: <module or feature boundary>
+- Task: <single implementation goal>
+- Boundaries: <allowed files/dirs>
+- Do not touch: <forbidden paths or generated outputs>
+- Validate: <commands>
+- Previous result: <job id + terminal status + relevant diff/check summary>
+```
+
 ## 工具
 
 - `deepseek_start_implementation`：启动后台任务，返回 `job_id`
