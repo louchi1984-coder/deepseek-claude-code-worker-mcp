@@ -48,6 +48,7 @@ const checks = {
   wait_mentions_not_main_loop: /not the main polling loop/.test(wait?.description ?? ""),
   task_schema_keeps_review_in_host: /final review in the host agent/.test(schema.task?.description ?? ""),
   task_schema_mentions_followup_context: /previous job_id, terminal status, failure\/check result, and current diff summary/.test(schema.task?.description ?? ""),
+  generated_paths_schema_mentions_eval: /validation commands may generate, such as eval reports/.test(schema.generated_paths?.description ?? ""),
   use_case_schema_mentions_auto_max: /Defaults to auto.*reasoning_effort=max/.test(schema.use_case?.description ?? ""),
   start_schema_hides_poll_after: schema.poll_after_ms == null,
   no_extra_properties: start?.inputSchema?.additionalProperties === false,

@@ -620,6 +620,7 @@ function restoreJob(jobId) {
     allowedRoots: arrayOfStrings(data.allowedRoots).length > 0
       ? arrayOfStrings(data.allowedRoots)
       : (data.cwd ? [data.cwd] : []),
+    generatedRoots: arrayOfStrings(data.generatedRoots),
     forbiddenPaths: arrayOfStrings(data.forbiddenPaths),
     checks: arrayOfStrings(data.checks),
     allow_docs_only: Boolean(data.allow_docs_only),
@@ -690,6 +691,7 @@ function createJob(jobId, jobDir, prepared) {
     before: prepared.before,
     ignored_dirs: prepared.args.ignored_dirs,
     allowedRoots: prepared.allowedRoots,
+    generatedRoots: prepared.generatedRoots,
     forbiddenPaths: prepared.forbiddenPaths,
     checks: prepared.args.checks,
     allow_docs_only: prepared.args.allow_docs_only,
@@ -798,16 +800,17 @@ function prepareImplementation(rawArgs, options = {}) {
   }
 
   const allowedRoots = normalizeRoots(cwd, args.allowed_dirs);
+  const generatedRoots = normalizeRoots(cwd, args.generated_paths);
   const forbiddenPaths = normalizeForbidden(cwd, args.forbidden_paths);
   const before = snapshotWorkspace(cwd, args.ignored_dirs);
 
-  const workerPrompt = buildWorkerPrompt(args, allowedRoots, forbiddenPaths);
+  const workerPrompt = buildWorkerPrompt(args, allowedRoots, generatedRoots, forbiddenPaths);
   const claudeSettings = buildClaudeSettings(args, cwd);
-  return { args, cwd, allowedRoots, forbiddenPaths, before, workerPrompt, claudeSettings };
+  return { args, cwd, allowedRoots, generatedRoots, forbiddenPaths, before, workerPrompt, claudeSettings };
 }
 
 async function runImplementationPrepared(prepared, job = null) {
-  const { args, cwd, allowedRoots, forbiddenPaths, before, workerPrompt, claudeSettings } = prepared;
+  const { args, cwd, allowedRoots, generatedRoots, forbiddenPaths, before, workerPrompt, claudeSettings } = prepared;
   setJobPhase(job, "model_running", modelRunningMessage(args));
   const worker = await runClaudeDeepSeek({
     cwd,
@@ -831,6 +834,7 @@ async function runImplementationPrepared(prepared, job = null) {
     cwd,
     changedFiles,
     allowedRoots,
+    generatedRoots,
     forbiddenPaths,
     allow_docs_only: args.allow_docs_only,
   });
@@ -933,6 +937,7 @@ function normalizeArgs(args, options = {}) {
   );
   const idle_after_ms = Number(args.idle_after_ms ?? preset.idle_after_ms ?? DEFAULT_IDLE_AFTER_MS);
   const allowed_dirs = arrayOfStrings(args.allowed_dirs);
+  const generated_paths = arrayOfStrings(args.generated_paths);
   const forbidden_paths = arrayOfStrings(args.forbidden_paths).length > 0
     ? arrayOfStrings(args.forbidden_paths)
     : DEFAULT_FORBIDDEN_PATHS;
@@ -955,6 +960,7 @@ function normalizeArgs(args, options = {}) {
     use_case: useCase,
     worker_profile,
     allowed_dirs,
+    generated_paths,
     forbidden_paths,
     checks: arrayOfStrings(args.checks),
     ignored_dirs: new Set([...DEFAULT_IGNORED_DIRS, ...arrayOfStrings(args.ignored_dirs)]),
@@ -980,10 +986,11 @@ function normalizeSafetyMode(value) {
   throw new Error("safety_mode must be permissive or safe");
 }
 
-function buildWorkerPrompt(args, allowedRoots, forbiddenPaths) {
+function buildWorkerPrompt(args, allowedRoots, generatedRoots, forbiddenPaths) {
   const useCase = USE_CASES[args.use_case] ?? USE_CASES.auto;
   const profile = WORKER_PROFILES[args.worker_profile] ?? WORKER_PROFILES.implementation;
   const allowed = allowedRoots.map((root) => relative(args.cwd, root) || ".").join(", ");
+  const generated = generatedRoots.map((root) => relative(args.cwd, root) || ".").join(", ");
   const forbidden = forbiddenPaths.map((path) => relative(args.cwd, path)).join(", ");
   const checks = args.checks.length > 0 ? args.checks.join(" && ") : "none requested";
   return [
@@ -998,6 +1005,7 @@ function buildWorkerPrompt(args, allowedRoots, forbiddenPaths) {
     "After editing, list changed files exactly and run requested checks when possible.",
     `Workspace: ${args.cwd}`,
     `Allowed paths: ${allowed}`,
+    `Generated side-effect paths: ${generated || "none"}`,
     `Forbidden paths: ${forbidden || "none"}`,
     `Checks requested by caller: ${checks}`,
     `DeepSeek V4 use case: ${args.use_case}`,
@@ -1156,7 +1164,8 @@ function filePermissionDecision(toolInput, config, { write }) {
   const forbidden = (config.forbidden_paths ?? []).some((path) => isInside(path, abs));
   if (forbidden) return denyPermission(`Access to forbidden path blocked: ${file}`);
   if (write && Array.isArray(config.allowed_dirs) && config.allowed_dirs.length > 0) {
-    const allowed = config.allowed_dirs.some((path) => isInside(path, abs));
+    const allowed = config.allowed_dirs.some((path) => isInside(path, abs))
+      || (Array.isArray(config.generated_paths) && config.generated_paths.some((path) => isInside(path, abs)));
     if (!allowed) return denyPermission(`Write outside allowed_dirs blocked: ${file}`);
   }
   return null;
@@ -1343,6 +1352,7 @@ async function runClaudeDeepSeek({ cwd, prompt, timeout_ms, claude_deepseek_bin,
     extraEnv.DEEPSEEK_WORKER_HOOK_CONFIG = JSON.stringify({
       cwd,
       allowed_dirs: job?.allowedRoots ?? [],
+      generated_paths: job?.generatedRoots ?? [],
       forbidden_paths: job?.forbiddenPaths ?? [],
       checks: job?.checks ?? [],
       worker_profile: job?.worker_profile ?? null,
@@ -1561,10 +1571,15 @@ function diffSnapshots(before, after) {
   return changes;
 }
 
-function evaluatePolicy({ cwd, changedFiles, allowedRoots, forbiddenPaths, allow_docs_only }) {
+function evaluatePolicy({ cwd, changedFiles, allowedRoots, generatedRoots = [], forbiddenPaths, allow_docs_only }) {
+  const generated_changed = changedFiles.filter((file) => {
+    const abs = resolve(cwd, file);
+    return generatedRoots.some((root) => isInside(root, abs));
+  });
   const outside_allowed = changedFiles.filter((file) => {
     const abs = resolve(cwd, file);
-    return !allowedRoots.some((root) => isInside(root, abs));
+    return !allowedRoots.some((root) => isInside(root, abs))
+      && !generatedRoots.some((root) => isInside(root, abs));
   });
   const forbidden_changed = changedFiles.filter((file) => {
     const abs = resolve(cwd, file);
@@ -1575,6 +1590,7 @@ function evaluatePolicy({ cwd, changedFiles, allowedRoots, forbiddenPaths, allow
   return {
     ok,
     outside_allowed,
+    generated_changed,
     forbidden_changed,
     docs_only,
     allow_docs_only,
@@ -1949,6 +1965,7 @@ function progressForJob(job) {
     cwd: job.cwd,
     changedFiles,
     allowedRoots: job.allowedRoots,
+    generatedRoots: job.generatedRoots ?? [],
     forbiddenPaths: job.forbiddenPaths,
     allow_docs_only: job.allow_docs_only,
   });
@@ -2146,6 +2163,7 @@ function writeJobStatus(job) {
     claude_args_preview: job.claude_args_preview ?? null,
     ignored_dirs: job.ignored_dirs instanceof Set ? [...job.ignored_dirs] : arrayOfStrings(job.ignored_dirs),
     allowedRoots: arrayOfStrings(job.allowedRoots),
+    generatedRoots: arrayOfStrings(job.generatedRoots),
     forbiddenPaths: arrayOfStrings(job.forbiddenPaths),
     checks: arrayOfStrings(job.checks),
     allow_docs_only: Boolean(job.allow_docs_only),
@@ -2211,6 +2229,11 @@ function implementationSchema() {
         type: "array",
         items: { type: "string" },
         description: "Relative or absolute directories/files the worker is allowed to modify. Required for worker_profile=scoped_patch; keep it narrow.",
+      },
+      generated_paths: {
+        type: "array",
+        items: { type: "string" },
+        description: "Relative or absolute files/directories that validation commands may generate, such as eval reports. These are reported as generated_changed rather than out-of-scope edits.",
       },
       forbidden_paths: {
         type: "array",
@@ -2671,6 +2694,8 @@ function buildReviewSummary({ changedFiles, diffAvailable, policy, checks, failu
     files_changed: changedFiles.sort(),
     change_count: changedFiles.length,
     policy_ok: policy.ok,
+    generated_changed: policy.generated_changed ?? [],
+    outside_allowed: policy.outside_allowed ?? [],
     checks_passed: checksPassed.length,
     checks_count: checks.length,
     requires_review: requiresReview,

@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 const config = {
   cwd: "/tmp/deepseek-worker-permission-smoke",
   allowed_dirs: ["/tmp/deepseek-worker-permission-smoke/src"],
+  generated_paths: ["/tmp/deepseek-worker-permission-smoke/docs/WORKFLOW_EVAL_RESULTS.md"],
   forbidden_paths: ["/tmp/deepseek-worker-permission-smoke/.env"],
   checks: ["node --check src/index.js"],
   worker_profile: "scoped_patch",
@@ -54,6 +55,11 @@ const cases = [
     name: "write outside allowed dirs",
     input: { tool_name: "Edit", tool_input: { file_path: "/tmp/deepseek-worker-permission-smoke/other.js" } },
     expect: "deny",
+  },
+  {
+    name: "write generated side-effect path",
+    input: { tool_name: "Edit", tool_input: { file_path: "/tmp/deepseek-worker-permission-smoke/docs/WORKFLOW_EVAL_RESULTS.md" } },
+    expect: null,
   },
   {
     name: "forbidden path read",

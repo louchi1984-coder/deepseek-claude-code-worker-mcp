@@ -8,7 +8,7 @@ Goal: **save Codex main-thread tokens, not DeepSeek tokens**. For suitable codin
 
 ## Current Beta
 
-Current GitHub beta tag: `v0.3.20-beta.36`.
+Current GitHub beta tag: `v0.3.20-beta.37`.
 
 ## What It Does
 
@@ -34,7 +34,7 @@ GitHub / no global install:
     "deepseek-code-worker": {
       "command": "npx",
       "args": [
-        "github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.36"
+        "github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.37"
       ]
     }
   }
@@ -67,14 +67,14 @@ Source-mode MCP config:
 Check a GitHub tag without installing:
 
 ```bash
-npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.36 --doctor
+npx github:louchi1984-coder/deepseek-claude-code-worker-mcp#v0.3.20-beta.37 --doctor
 ```
 
 Expected shape:
 
 ```json
 {
-  "server_version": "0.3.20-beta.36",
+  "server_version": "0.3.20-beta.37",
   "ok": true
 }
 ```
@@ -165,6 +165,7 @@ This MCP saves tokens when Codex reads and writes less code. Recommended practic
 
 - Give the worker a narrow task: one goal, clear boundaries, and explicit validation commands.
 - Do not make Codex read the whole codebase before delegating; pass only the project brief needed for this slice.
+- Put validation-generated side effects, such as eval reports, in `generated_paths` instead of widening `allowed_dirs`.
 - While a job is running, avoid logs, events, and diffs by default; read compact status only when facts are needed.
 - After terminal status, review only `files_changed`, key implementation ranges, checks, and known risks.
 - Large generated result files, eval outputs, log summaries, and snapshot documents should not be repeatedly read or edited by the worker by default. Prefer letting the worker change core implementation and let validation commands or the host produce generated outputs at the end.
@@ -178,7 +179,8 @@ Project brief:
 - Current slice: <module or feature boundary>
 - Task: <single implementation goal>
 - Boundaries: <allowed files/dirs>
-- Do not touch: <forbidden paths or generated outputs>
+- Generated outputs: <eval reports or generated files>
+- Do not touch: <forbidden paths>
 - Validate: <commands>
 - Previous result: <job id + terminal status + relevant diff/check summary>
 ```
@@ -244,7 +246,12 @@ Default `safety_mode` is `permissive`: Bash is allowed except clearly dangerous 
 
 Use `worker_profile: "scoped_patch"` with narrow `allowed_dirs` for tightly scoped patches.
 
-Version `0.3.20-beta.36` principle: report actions, do not adjudicate. `allowed_dirs` changes outside the target scope are reported as facts, not automatically treated as failed work. `forbidden_paths` remains a hard failure. `allow_docs_only` is kept only for compatibility with older calls; documentation changes are reported and no longer fail just because they are docs-only.
+Use `generated_paths` for files that validation or eval commands are expected to
+create or update, such as `docs/WORKFLOW_EVAL_RESULTS.md`. These paths are
+reported as `generated_changed` and are not counted as out-of-scope edits, while
+`forbidden_paths` still wins if the same file is forbidden.
+
+Version `0.3.20-beta.37` principle: report actions, do not adjudicate. `allowed_dirs` changes outside the target scope are reported as facts, not automatically treated as failed work. `forbidden_paths` remains a hard failure. `allow_docs_only` is kept only for compatibility with older calls; documentation changes are reported and no longer fail just because they are docs-only.
 
 ## Verification
 

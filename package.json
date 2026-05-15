@@ -1,6 +1,6 @@
 {
   "name": "deepseek-worker-mcp",
-  "version": "0.3.20-beta.36",
+  "version": "0.3.20-beta.37",
   "description": "MCP server that runs DeepSeek V4 as a Claude Code coding worker with job status, restore, scoped permissions, and review artifacts.",
   "keywords": [
     "mcp",
@@ -41,6 +41,7 @@
     "mcp:doctor": "node src/deepseek-worker-mcp.mjs --doctor",
     "mcp:setup": "node src/deepseek-worker-mcp.mjs --setup",
     "mcp:smoke": "node scripts/smoke-deepseek-worker-mcp.mjs",
+    "mcp:smoke:generated-policy": "node scripts/smoke-generated-policy.mjs",
     "mcp:smoke:permission": "node scripts/smoke-permission-hook.mjs",
     "mcp:smoke:restore": "node scripts/smoke-job-restore.mjs",
     "mcp:smoke:stream": "node scripts/smoke-stream-events.mjs",
